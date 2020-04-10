@@ -69,7 +69,12 @@ void loop()
   // TODO pulseIn()
 
   // Control PWM
-  uint32_t dutyPercent = highestTemp > DEVICE_DISCONNECTED_C ? map(highestTemp, 30, 60, 50, 100) : 100;
+  uint32_t dutyPercent = 100;
+  if (highestTemp > DEVICE_DISCONNECTED_C)
+  {
+    dutyPercent = map(highestTemp, 30, 60, 50, 100);
+  }
+
   pwm.duty(dutyPercent * pwm.maxDuty() / 100U);
 
   // Wait
