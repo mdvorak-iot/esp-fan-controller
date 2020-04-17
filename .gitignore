@@ -5,3 +5,5 @@
 .vscode/ipch
 .idea/
 *.iml
+/CMakeLists.txt
+/CMakeListsPrivate.txt
