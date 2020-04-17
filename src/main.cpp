@@ -4,9 +4,11 @@
 #include "Pwm.h"
 
 // Config
-const auto PWM_PIN = GPIO_NUM_25;
-const uint32_t PWM_FREQ = 300000;
-const auto PWM_RESOLUTION = LEDC_TIMER_9_BIT;
+const auto PWM_PIN = GPIO_NUM_14;
+const uint32_t PWM_FREQ = 50000;
+const auto PWM_RESOLUTION = LEDC_TIMER_8_BIT;
+
+const auto RPM_PIN = GPIO_NUM_12;
 
 // Devices
 static Pwm pwm(PWM_PIN, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION);
@@ -14,6 +16,7 @@ static OneWire wire(GPIO_NUM_23);
 static DallasTemperature temp(&wire);
 static std::vector<uint64_t> sensors;
 
+// Setup
 void setup()
 {
   // Enable ISR
@@ -29,6 +32,7 @@ void setup()
   // Init Sensors
   temp.begin();
 
+  // Enumerate and store all sensors
   DeviceAddress addr = {};
   while (wire.search(addr))
   {
@@ -65,15 +69,17 @@ void loop()
     }
   }
 
-  // Read external PWM signal
-  // TODO pulseIn()
-
   // Control PWM
-  uint32_t dutyPercent = 100;
+  uint32_t dutyPercent = 99;
   if (highestTemp > DEVICE_DISCONNECTED_C)
   {
-    dutyPercent = map(highestTemp, 30, 60, 50, 100);
+    dutyPercent = map(highestTemp, 30, 60, 50, 99);
   }
+
+  // TODO
+  dutyPercent = ((millis() / 1000U) % (99 - 30)) + 30;
+  log_e("duty=%d", dutyPercent);
+  // TODO END
 
   pwm.duty(dutyPercent * pwm.maxDuty() / 100U);
 
