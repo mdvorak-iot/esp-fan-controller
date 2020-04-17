@@ -6,18 +6,15 @@
 
 class Pwm
 {
-  public:
+public:
     Pwm(gpio_num_t pin, ledc_timer_t timer, ledc_channel_t channel, uint32_t frequency, ledc_timer_bit_t resolution)
         : _timer(timer),
           _channel(channel),
           _pin(pin),
           _frequency(frequency),
           _resolution(resolution),
-          _maxDuty((1UL << _resolution) - 1),
-          _maxFrequency(80000000 / 2 ^ _resolution)
+          _maxDuty((1UL << _resolution) - 1)
     {
-        // Validate frequency
-        ESP_ERROR_CHECK(frequency <= _maxFrequency ? ESP_OK : ESP_FAIL);
     }
 
     esp_err_t begin()
@@ -49,7 +46,7 @@ class Pwm
         r = ledc_set_duty_and_update(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, 0, 0);
         return r;
     }
-    
+
     uint32_t maxDuty() const
     {
         return _maxDuty;
@@ -63,7 +60,7 @@ class Pwm
     esp_err_t duty(uint32_t duty)
     {
         // Avoid overflow
-        if (duty > _maxDuty )
+        if (duty > _maxDuty)
         {
             duty = _maxDuty;
         }
@@ -87,21 +84,7 @@ class Pwm
         return _frequency;
     }
 
-#ifndef NDEBUG
-    esp_err_t frequency(uint32_t frequency)
-    {
-        ESP_ERROR_CHECK(frequency <= _maxFrequency ? ESP_OK : ESP_FAIL);
-
-        auto r = ledc_set_freq(LEDC_HIGH_SPEED_MODE, LEDC_TIMER_0, _frequency);
-        if (r == ESP_OK)
-        {
-            _frequency = frequency;
-        }
-        return r;
-    }
-#endif
-
-  private:
+private:
     ledc_timer_t _timer;
     ledc_channel_t _channel;
     gpio_num_t _pin;
@@ -109,5 +92,4 @@ class Pwm
     uint32_t _duty;
     ledc_timer_bit_t _resolution;
     uint32_t _maxDuty;
-    uint32_t _maxFrequency;
 };
