@@ -232,7 +232,7 @@ void readoutLoop(void *)
   {
     sensorData.duty = pwm.duty() * 100U / pwm.maxDuty();
     sensorData.rpm = rpm.rpm();
-    log_e("duty=%d rpm=%d", sensorData.duty, sensorData.rpm);
-    delay(100);
+    //log_e("duty=%d rpm=%d", sensorData.duty, sensorData.rpm);
+    delay(1);
   }
 }
