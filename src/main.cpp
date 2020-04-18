@@ -8,6 +8,7 @@
 #include <DallasTemperature.h>
 #include "Pwm.h"
 #include "Rpm.h"
+#include "Average.h"
 
 // Config
 const auto PWM_PIN = GPIO_NUM_14;
@@ -228,11 +229,14 @@ void loop()
 
 void readoutLoop(void *)
 {
+  Average<uint16_t, 10> rpmAvg;
+
   while (true)
   {
     sensorData.duty = pwm.duty() * 100U / pwm.maxDuty();
-    sensorData.rpm = rpm.rpm();
+    rpmAvg.add(rpm.rpm());
+    sensorData.rpm = rpmAvg.value();
     log_e("duty=%d rpm=%d", sensorData.duty, sensorData.rpm);
-    delay(500);
+    delay(100);
   }
 }

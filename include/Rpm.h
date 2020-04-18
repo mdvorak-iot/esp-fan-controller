@@ -11,7 +11,6 @@ public:
         : _pin(pin),
           _unit(unit),
           _channel(channel),
-          _mutex(portMUX_INITIALIZER_UNLOCKED),
           _index(0),
           _values{}
     {
@@ -21,8 +20,7 @@ public:
     uint16_t rpm();
 
 private:
-    static const size_t SAMPLES = 100;
-    static const unsigned long INTERVAL = 10;
+    static const size_t SAMPLES = 10;
 
     struct Snapshot
     {
@@ -33,10 +31,6 @@ private:
     gpio_num_t const _pin;
     pcnt_unit_t _unit;
     pcnt_channel_t _channel;
-    portMUX_TYPE _mutex;
     size_t _index;
     Snapshot _values[SAMPLES];
-
-    void measure();
-    static void worker(void *p);
 };
