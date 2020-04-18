@@ -123,7 +123,7 @@ void setupBLE()
     return;
   }
 
-  err = esp_ble_gap_set_device_name(DEVICE_NAME);\
+  err = esp_ble_gap_set_device_name(DEVICE_NAME);
   if (err != ESP_OK)
   {
     log_e("esp_ble_gap_set_device_name failed: %d %s", err, esp_err_to_name(err));
@@ -216,7 +216,7 @@ void loop()
   }
 
   // TODO
-  dutyPercent = 50;//((millis() / 1000U) % (99 - 30)) + 30;
+  dutyPercent = 50; //((millis() / 1000U) % (99 - 30)) + 30;
   // TODO END
 
   // Control PWM
@@ -232,7 +232,7 @@ void readoutLoop(void *)
   {
     sensorData.duty = pwm.duty() * 100U / pwm.maxDuty();
     sensorData.rpm = rpm.rpm();
-    //log_e("duty=%d rpm=%d", sensorData.duty, sensorData.rpm);
-    delay(1000);
+    log_e("duty=%d rpm=%d", sensorData.duty, sensorData.rpm);
+    delay(500);
   }
 }
