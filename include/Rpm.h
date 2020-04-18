@@ -20,4 +20,7 @@ public:
 
 private:
     gpio_num_t const _pin;
+    
+    unsigned long _lastReadout;
+    int16_t _lastCount;
 };

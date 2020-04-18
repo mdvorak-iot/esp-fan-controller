@@ -1,64 +1,44 @@
 #include "Rpm.h"
-#include "driver/rmt.h"
-#include "driver/periph_ctrl.h"
-#include "soc/rmt_reg.h"
+#include "driver/pcnt.h"
+
+const int16_t COUNTER_MAX = 32767;
 
 esp_err_t Rpm::begin()
 {
-    rmt_config_t rmt_cfg = {
-        .rmt_mode = RMT_MODE_RX,
-        .channel = RMT_CHANNEL_0, // TODO param
-        .clk_div = 20,
-        .gpio_num = _pin,
-        .mem_block_num = 1,
-        {.rx_config = {
-             .filter_en = false,
-             .filter_ticks_thresh = 0,
-             .idle_threshold = 50000,
-         }},
+    pcnt_config_t pcnt_config = {
+        .pulse_gpio_num = _pin,
+        .ctrl_gpio_num = PCNT_PIN_NOT_USED,
+        .lctrl_mode = PCNT_MODE_KEEP,
+        .hctrl_mode = PCNT_MODE_KEEP,
+        .pos_mode = PCNT_COUNT_INC,
+        .neg_mode = PCNT_COUNT_DIS,
+        .counter_h_lim = COUNTER_MAX,
+        .counter_l_lim = 0,
+        .unit = PCNT_UNIT_0,
+        .channel = PCNT_CHANNEL_0,
     };
 
-    auto err = rmt_config(&rmt_cfg);
-    if (err != ESP_OK)
-    {
-        return err;
-    }
-
-    rmt_driver_install(rmt_cfg.channel, 2000, 0);
-    return rmt_rx_start(rmt_cfg.channel, true);
+    // TODO check
+    pcnt_unit_config(&pcnt_config);
+    pcnt_set_filter_value(pcnt_config.unit, 1000);
+    pcnt_filter_enable(pcnt_config.unit);
+    pcnt_counter_clear(pcnt_config.unit);
+    pcnt_counter_resume(pcnt_config.unit);
+    return ESP_OK;
 }
 
 uint16_t Rpm::rpm()
 {
-    // TODO persist?
-    RingbufHandle_t rb = nullptr;
-    if (rmt_get_ringbuf_handle(RMT_CHANNEL_0, &rb) != ESP_OK) // TODO param
-    {
-        return 0;
-    }
+    auto now = micros();
+    auto lastReadout = _lastReadout;
+    auto lastCount = _lastCount;
 
-    size_t rx_size = 0;
-    auto items = (rmt_item32_t *)xRingbufferReceive(rb, &rx_size, pdMS_TO_TICKS(10));
-    if (items != nullptr)
-    {
-        if (rx_size > 0)
-        {
-            printf("size=%d ", rx_size);
-            for (size_t i = 0; i < rx_size / sizeof(rmt_item32_t); i++)
-            {
-                printf("[0]%i:%i, ", items[i].level0, items[i].duration0);
-                printf("[1]%i:%i", items[i].level1, items[i].duration1);
-            }
+    // TODO check
+    _lastReadout = now;
+    pcnt_get_counter_value(PCNT_UNIT_0, &_lastCount);
 
-            printf("\n");
-        }
-
-        vRingbufferReturnItem(rb, (void *)items);
-    }
-    else
-    {
-        log_e("no data");
-    }
+    auto revs = ((int32_t)COUNTER_MAX + _lastCount - lastCount) % COUNTER_MAX;
+    log_e("%d in %d = %d rpm", revs, now - lastReadout, 30000000 * revs / (now - lastReadout));
 
     // TODO
     return 0;
