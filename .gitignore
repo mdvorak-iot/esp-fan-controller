@@ -7,3 +7,4 @@
 *.iml
 /CMakeLists.txt
 /CMakeListsPrivate.txt
+/cmake-build-*/
