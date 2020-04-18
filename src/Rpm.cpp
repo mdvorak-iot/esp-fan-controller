@@ -18,12 +18,29 @@ esp_err_t Rpm::begin()
         .channel = PCNT_CHANNEL_0,
     };
 
-    // TODO check
-    pcnt_unit_config(&pcnt_config);
-    pcnt_set_filter_value(pcnt_config.unit, 1000);
-    pcnt_filter_enable(pcnt_config.unit);
-    pcnt_counter_clear(pcnt_config.unit);
-    pcnt_counter_resume(pcnt_config.unit);
+    // Init
+    esp_err_t err;
+    err = pcnt_unit_config(&pcnt_config);
+    if (err != ESP_OK)
+    {
+        log_e("pcnt_unit_config failed: %d %s", err, esp_err_to_name(err));
+        return err;
+    }
+
+    err = pcnt_counter_clear(pcnt_config.unit);
+    if (err != ESP_OK)
+    {
+        log_e("pcnt_counter_clear failed: %d %s", err, esp_err_to_name(err));
+        return err;
+    }
+
+    err = pcnt_counter_resume(pcnt_config.unit);
+    if (err != ESP_OK)
+    {
+        log_e("pcnt_counter_resume failed: %d %s", err, esp_err_to_name(err));
+        return err;
+    }
+
     return ESP_OK;
 }
 
