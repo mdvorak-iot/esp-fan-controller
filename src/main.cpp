@@ -187,6 +187,7 @@ void setup()
 
   // Done
   log_i("started");
+  delay(500);
 }
 
 void loop()
@@ -236,7 +237,6 @@ void readoutLoop(void *)
     sensorData.duty = pwm.duty() * 100U / pwm.maxDuty();
     rpmAvg.add(rpm.rpm());
     sensorData.rpm = rpmAvg.value();
-    log_e("duty=%d rpm=%d", sensorData.duty, sensorData.rpm);
     delay(100);
   }
 }
