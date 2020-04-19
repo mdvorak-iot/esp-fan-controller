@@ -119,4 +119,6 @@ void setupBLE(const char *deviceName, const uint8_t serviceUUID[16], void *data,
     log_e("esp_ble_gap_start_advertising failed: %d %s", err, esp_err_to_name(err));
     return;
   }
+
+  log_i("ble started");
 }

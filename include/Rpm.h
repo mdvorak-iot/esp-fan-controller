@@ -17,7 +17,7 @@ public:
     }
 
     esp_err_t begin();
-    uint16_t rpm();
+    uint16_t measure();
 
 private:
     static const size_t SAMPLES = 10;

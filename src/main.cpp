@@ -141,8 +141,13 @@ void readoutLoop(void *)
   while (true)
   {
     sensorData.duty = pwm.duty() * 100U / pwm.maxDuty();
-    rpmAvg.add(rpm.rpm());
+
+    auto rpmValue = rpm.measure();
+    rpmAvg.add(rpmValue);
     sensorData.rpm = rpmAvg.value();
+
+    printf("d=%d rpm=%d raw=%d\n", sensorData.duty, sensorData.rpm, rpmValue);
+
     delay(100);
   }
 }

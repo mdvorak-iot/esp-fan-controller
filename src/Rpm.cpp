@@ -27,6 +27,24 @@ esp_err_t Rpm::begin()
         return err;
     }
 
+    // Filtering
+    // NOTE since we are measuring very low frequencies, we can filter out all short pulses (noise)
+    // NOTE counter is 10-bit in APB_CLK cycles (80Mhz), so 1000 = 80kHz, 1023 is max
+    err = pcnt_set_filter_value(pcnt_config.unit, 1023);
+    if (err != ESP_OK)
+    {
+        log_e("pcnt_set_filter_value failed: %d %s", err, esp_err_to_name(err));
+        return err;
+    }
+
+    err = pcnt_filter_enable(pcnt_config.unit);
+    if (err != ESP_OK)
+    {
+        log_e("pcnt_filter_enable failed: %d %s", err, esp_err_to_name(err));
+        return err;
+    }
+
+    // Start the counter
     err = pcnt_counter_clear(pcnt_config.unit);
     if (err != ESP_OK)
     {
@@ -44,7 +62,7 @@ esp_err_t Rpm::begin()
     return ESP_OK;
 }
 
-uint16_t Rpm::rpm()
+uint16_t Rpm::measure()
 {
     // Append to buffer
     auto now = micros();
@@ -63,5 +81,6 @@ uint16_t Rpm::rpm()
     auto revs = ((int32_t)COUNTER_MAX + count - oldest.count) % COUNTER_MAX;
     auto elapsed = now - oldest.time;
 
+    // 15000000 = 60000000 / pulses per rev / rising and falling edge = 60000000 / 2 / 2
     return 15000000 * revs / elapsed;
 }
