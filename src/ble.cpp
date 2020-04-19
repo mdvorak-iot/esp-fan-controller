@@ -1,34 +1,28 @@
-#include <Arduino.h>
 #include <esp_bt.h>
 #include <esp_bt_device.h>
 #include <esp_bt_main.h>
 #include <esp_gap_ble_api.h>
 #include <esp32-hal-bt.h>
-#include <OneWire.h>
-#include <DallasTemperature.h>
-#include "Pwm.h"
-#include "Rpm.h"
-#include "Average.h"
 
 // Data
 static esp_ble_adv_data_t advData = {
     .set_scan_rsp = false,
     .include_name = true,
     .include_txpower = false,
-    .min_interval = 32,
-    .max_interval = 64,
+    .min_interval = 0,
+    .max_interval = 0,
     .appearance = 0x00,
-    .manufacturer_len = 0,
-    .p_manufacturer_data = NULL,
-    .service_data_len = 0,     // Set in setup
-    .p_service_data = nullptr, // Set in setup
-    .service_uuid_len = 0,     // Set in setup
-    .p_service_uuid = nullptr, // Set in setup
+    .manufacturer_len = 0,       // Set in setup
+    .p_manufacturer_data = NULL, // Set in setup
+    .service_data_len = 0,
+    .p_service_data = nullptr,
+    .service_uuid_len = 0,
+    .p_service_uuid = nullptr,
     .flag = (ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT),
 };
 static esp_ble_adv_params_t advParams = {
-    .adv_int_min = 80, // N * 0.625ms
-    .adv_int_max = 160,
+    .adv_int_min = 0, // Set in setup
+    .adv_int_max = 0, // Set in setup
     .adv_type = ADV_TYPE_NONCONN_IND,
     .own_addr_type = BLE_ADDR_TYPE_PUBLIC,
     .peer_addr = {0},
@@ -38,16 +32,11 @@ static esp_ble_adv_params_t advParams = {
 };
 
 // Setup
-void setupBLE(const char *deviceName, const uint8_t serviceUUID[16], void *data, size_t dataLen, uint32_t minIntervalMs, uint32_t maxIntervalMs)
+void setupBLE(const char *deviceName, uint32_t minIntervalMs, uint32_t maxIntervalMs)
 {
   esp_err_t err;
 
   // Configure
-  advData.p_service_uuid = const_cast<uint8_t *>(serviceUUID); // NOTE it is never modified
-  advData.service_uuid_len = 16;
-  advData.p_service_data = static_cast<uint8_t *>(data);
-  advData.service_data_len = dataLen;
-
   advParams.adv_int_min = 0.625 * minIntervalMs;
   advParams.adv_int_max = 0.625 * maxIntervalMs;
 
@@ -99,17 +88,17 @@ void setupBLE(const char *deviceName, const uint8_t serviceUUID[16], void *data,
     return;
   }
 
-  err = esp_ble_gap_config_adv_data(&advData);
-  if (err != ESP_OK)
-  {
-    log_e("esp_ble_gap_config_adv_data failed: %d %s", err, esp_err_to_name(err));
-    return;
-  }
-
   err = esp_ble_gap_set_device_name(deviceName);
   if (err != ESP_OK)
   {
     log_e("esp_ble_gap_set_device_name failed: %d %s", err, esp_err_to_name(err));
+    return;
+  }
+
+  err = esp_ble_gap_config_adv_data(&advData);
+  if (err != ESP_OK)
+  {
+    log_e("esp_ble_gap_config_adv_data failed: %d %s", err, esp_err_to_name(err));
     return;
   }
 
@@ -121,4 +110,19 @@ void setupBLE(const char *deviceName, const uint8_t serviceUUID[16], void *data,
   }
 
   log_i("ble started");
+}
+
+void updateBLE(void *data, size_t dataLen)
+{
+  // Store
+  advData.p_manufacturer_data = static_cast<uint8_t *>(data);
+  advData.manufacturer_len = dataLen;
+
+  // Update
+  auto err = esp_ble_gap_config_adv_data(&advData);
+  if (err != ESP_OK)
+  {
+    log_e("esp_ble_gap_config_adv_data failed: %d %s", err, esp_err_to_name(err));
+    return;
+  }
 }

@@ -13,7 +13,7 @@
 // Config
 const auto LO_THERSHOLD_TEMP_C = 30;
 const auto HI_THERSHOLD_TEMP_C = 60;
-const auto LO_THERSHOLD_DUTY = 40u;
+const auto LO_THERSHOLD_DUTY = 50u;
 const auto HI_THERSHOLD_DUTY = 99u;
 
 const auto PWM_PIN = GPIO_NUM_14;
@@ -21,15 +21,8 @@ const auto PWM_FREQ = 50000u;
 const auto PWM_RESOLUTION = LEDC_TIMER_8_BIT;
 const auto RPM_PIN = GPIO_NUM_12;
 
-const auto DEVICE_NAME = "PSU";
-const uint8_t SERVICE_UUID[16] = {0xa4, 0x86, 0xb7, 0xd8, 0x56, 0x33, 0x71, 0x4b, 0x81, 0xa4, 0x4e, 0x8e, 0xae, 0x63, 0x89, 0xd6};
-
-// Devices
-static Pwm pwm(PWM_PIN, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION);
-static Rpm rpm(RPM_PIN);
-static OneWire wire(GPIO_NUM_23);
-static DallasTemperature temp(&wire);
-static std::vector<uint64_t> sensors;
+const auto BLE_DEVICE_NAME = "PSU";
+const auto BLE_ADV_INTERVAL = 500;
 
 // Data
 const size_t SENSOR_DATA_TEMP_LEN = 4;
@@ -39,10 +32,18 @@ struct SensorData
   uint16_t rpm;
   uint16_t temperatures[SENSOR_DATA_TEMP_LEN];
 };
-static SensorData sensorData = {};
 
-void setupBLE(const char *deviceName, const uint8_t serviceUUID[16], void *data, size_t dataLen, uint32_t minIntervalMs, uint32_t maxIntervalMs);
-void readoutLoop(void *);
+// Devices
+static Pwm pwm(PWM_PIN, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION);
+static Rpm rpm(RPM_PIN);
+static OneWire wire(GPIO_NUM_23);
+static DallasTemperature temp(&wire);
+static std::vector<uint64_t> sensors;
+static Average<uint16_t, 10> rpmAvg;
+
+// BLE
+void setupBLE(const char *deviceName, uint32_t minIntervalMs, uint32_t maxIntervalMs);
+void updateBLE(void *data, size_t dataLen);
 
 // Setup
 void setup()
@@ -86,10 +87,7 @@ void setup()
   }
 
   // Init BLE
-  setupBLE(DEVICE_NAME, SERVICE_UUID, &sensorData, sizeof(SensorData), 100, 200);
-
-  // Start background tasks
-  xTaskCreate(readoutLoop, "readoutLoop", 10000, nullptr, tskIDLE_PRIORITY, nullptr);
+  setupBLE(BLE_DEVICE_NAME, BLE_ADV_INTERVAL - 10, BLE_ADV_INTERVAL + 10);
 
   // Done
   log_i("started");
@@ -98,6 +96,8 @@ void setup()
 
 void loop()
 {
+  SensorData sensorData = {};
+
   // Read temperatures
   temp.requestTemperatures();
 
@@ -130,24 +130,16 @@ void loop()
   // Control PWM
   pwm.duty(dutyPercent * pwm.maxDuty() / 100U);
 
+  // Readout
+  sensorData.duty = pwm.duty() * 100U / pwm.maxDuty();
+
+  auto rpmValue = rpm.measure();
+  rpmAvg.add(rpmValue);
+  sensorData.rpm = rpmAvg.value();
+
+  // Update BLE
+  updateBLE(&sensorData, sizeof(sensorData));
+
   // Wait
   delay(100);
-}
-
-void readoutLoop(void *)
-{
-  Average<uint16_t, 10> rpmAvg;
-
-  while (true)
-  {
-    sensorData.duty = pwm.duty() * 100U / pwm.maxDuty();
-
-    auto rpmValue = rpm.measure();
-    rpmAvg.add(rpmValue);
-    sensorData.rpm = rpmAvg.value();
-
-    printf("d=%d rpm=%d raw=%d\n", sensorData.duty, sensorData.rpm, rpmValue);
-
-    delay(100);
-  }
 }
