@@ -118,11 +118,27 @@ void updateBLE(void *data, size_t dataLen)
   advData.p_manufacturer_data = static_cast<uint8_t *>(data);
   advData.manufacturer_len = dataLen;
 
+  // Stop
+  auto err = esp_ble_gap_stop_advertising();
+  if (err != ESP_OK)
+  {
+    log_e("esp_ble_gap_stop_advertising failed: %d %s", err, esp_err_to_name(err));
+    return;
+  }
+
   // Update
-  auto err = esp_ble_gap_config_adv_data(&advData);
+  err = esp_ble_gap_config_adv_data(&advData);
   if (err != ESP_OK)
   {
     log_e("esp_ble_gap_config_adv_data failed: %d %s", err, esp_err_to_name(err));
+    return;
+  }
+
+  // Restart
+  err = esp_ble_gap_start_advertising(&advParams);
+  if (err != ESP_OK)
+  {
+    log_e("esp_ble_gap_start_advertising failed: %d %s", err, esp_err_to_name(err));
     return;
   }
 }

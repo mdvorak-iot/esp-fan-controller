@@ -60,9 +60,10 @@ public:
     esp_err_t duty(uint32_t duty)
     {
         // Avoid overflow
-        if (duty > _maxDuty)
+        // NOTE never allow 100% duty cycle, it behaves wierd sometimes and can destroy FET driver
+        if (duty > _maxDuty - 1)
         {
-            duty = _maxDuty;
+            duty = _maxDuty - 1;
         }
         // NOOP
         if (duty == _duty)

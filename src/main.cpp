@@ -16,10 +16,10 @@ const auto HI_THERSHOLD_TEMP_C = 60;
 const auto LO_THERSHOLD_DUTY = 50u;
 const auto HI_THERSHOLD_DUTY = 99u;
 
-const auto PWM_PIN = GPIO_NUM_14;
+const auto PWM_PIN = GPIO_NUM_2;
 const auto PWM_FREQ = 50000u;
 const auto PWM_RESOLUTION = LEDC_TIMER_8_BIT;
-const auto RPM_PIN = GPIO_NUM_12;
+const auto RPM_PIN = GPIO_NUM_39;
 
 const auto BLE_DEVICE_NAME = "PSU";
 const auto BLE_ADV_INTERVAL = 500;
@@ -31,15 +31,16 @@ struct SensorData
   uint8_t duty;
   uint16_t rpm;
   uint16_t temperatures[SENSOR_DATA_TEMP_LEN];
+  uint32_t uptime;
 };
 
 // Devices
 static Pwm pwm(PWM_PIN, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION);
 static Rpm rpm(RPM_PIN);
-static OneWire wire(GPIO_NUM_23);
+static OneWire wire(GPIO_NUM_15);
 static DallasTemperature temp(&wire);
 static std::vector<uint64_t> sensors;
-static Average<uint16_t, 10> rpmAvg;
+static Average<uint16_t, 5> rpmAvg;
 
 // BLE
 void setupBLE(const char *deviceName, uint32_t minIntervalMs, uint32_t maxIntervalMs);
@@ -90,6 +91,7 @@ void setup()
   setupBLE(BLE_DEVICE_NAME, BLE_ADV_INTERVAL - 10, BLE_ADV_INTERVAL + 10);
 
   // Done
+  pinMode(0, OUTPUT);
   log_i("started");
   delay(500);
 }
@@ -97,42 +99,43 @@ void setup()
 void loop()
 {
   SensorData sensorData = {};
+  sensorData.uptime = millis() / 1000;
 
   // Read temperatures
-  temp.requestTemperatures();
-
   float highestTemp = DEVICE_DISCONNECTED_C;
-  int tempIndex = 0;
-  for (uint64_t addr : sensors)
+
+  if (!sensors.empty())
   {
-    float c = temp.getTempC((uint8_t *)&addr);
-    if (c > highestTemp)
+    temp.requestTemperatures();
+
+    int tempIndex = 0;
+    for (uint64_t addr : sensors)
     {
-      highestTemp = c;
-    }
-    if (tempIndex < SENSOR_DATA_TEMP_LEN)
-    {
-      sensorData.temperatures[tempIndex++] = (uint16_t)(c * 10);
+      float c = temp.getTempC((uint8_t *)&addr);
+      if (c > highestTemp)
+      {
+        highestTemp = c;
+      }
+      if (tempIndex < SENSOR_DATA_TEMP_LEN)
+      {
+        sensorData.temperatures[tempIndex++] = (uint16_t)(c * 10);
+      }
     }
   }
 
   // Calculate fan speed
-  uint32_t dutyPercent = 99;
-  if (highestTemp > DEVICE_DISCONNECTED_C)
+  uint32_t dutyPercent = HI_THERSHOLD_DUTY;
+  if (highestTemp != DEVICE_DISCONNECTED_C)
   {
-    dutyPercent = map(highestTemp, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C, LO_THERSHOLD_DUTY, HI_THERSHOLD_TEMP_C);
+    auto value = constrain(highestTemp, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C);
+    dutyPercent = map(value, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C, LO_THERSHOLD_DUTY, HI_THERSHOLD_DUTY);
   }
-
-  // TODO
-  dutyPercent = 50; //((millis() / 1000U) % (99 - 30)) + 30;
-  // TODO END
 
   // Control PWM
   pwm.duty(dutyPercent * pwm.maxDuty() / 100U);
+  sensorData.duty = roundf(pwm.duty() * 100.0f / pwm.maxDuty());
 
   // Readout
-  sensorData.duty = pwm.duty() * 100U / pwm.maxDuty();
-
   auto rpmValue = rpm.measure();
   rpmAvg.add(rpmValue);
   sensorData.rpm = rpmAvg.value();
@@ -140,6 +143,13 @@ void loop()
   // Update BLE
   updateBLE(&sensorData, sizeof(sensorData));
 
+  // Status LED
+  static auto status = false;
+  status = !status;
+  digitalWrite(0, status ? HIGH : LOW);
+
   // Wait
-  delay(100);
+  static auto lastLoop = millis();
+  auto elapsed = millis() - lastLoop;
+  delay(elapsed > 100 ? 100 : 100 - elapsed);
 }
