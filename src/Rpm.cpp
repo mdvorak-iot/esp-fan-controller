@@ -64,19 +64,20 @@ esp_err_t Rpm::begin()
 
 uint16_t Rpm::measure()
 {
-    // Append to buffer
+    // Calculate
     auto now = micros();
     int16_t count = 0;
     pcnt_get_counter_value(_unit, &count);
 
-    _index = (_index + 1) % SAMPLES;
+    // Append to buffer
+    _index = (_index + 1) % _samples;
     _values[_index] = {
         .time = now,
         .count = count,
     };
 
     // Calculate
-    auto oldest = _values[(_index + 1) % SAMPLES];
+    auto oldest = _values[(_index + 1) % _samples];
 
     auto revs = ((int32_t)COUNTER_MAX + count - oldest.count) % COUNTER_MAX;
     auto elapsed = now - oldest.time;

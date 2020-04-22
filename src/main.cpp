@@ -19,24 +19,24 @@ const auto HI_THERSHOLD_DUTY = 99u;
 const auto PWM_PIN = GPIO_NUM_2;
 const auto PWM_FREQ = 50000u;
 const auto PWM_RESOLUTION = LEDC_TIMER_8_BIT;
-const auto RPM_PIN = GPIO_NUM_39;
 
-const auto BLE_DEVICE_NAME = "PSU";
+const auto RPM_PIN = GPIO_NUM_39;
+const auto RPM_SAMPLES = 10;
+
+const uint8_t BLE_SERVICE_UUID[ESP_UUID_LEN_128] = {0x54, 0x59, 0xfc, 0xae, 0x55, 0x99, 0x4d, 0x82, 0x9f, 0xde, 0x1a, 0x1d, 0x47, 0x6b, 0x59, 0xeb};
 const auto BLE_ADV_INTERVAL = 500;
 
 // Data
-const size_t SENSOR_DATA_TEMP_LEN = 4;
-struct SensorData
+struct __attribute__((packed)) SensorData
 {
-  uint8_t duty;
   uint16_t rpm;
-  uint16_t temperatures[SENSOR_DATA_TEMP_LEN];
+  uint16_t temperature;
   uint32_t uptime;
 };
 
 // Devices
 static Pwm pwm(PWM_PIN, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION);
-static Rpm rpm(RPM_PIN);
+static Rpm rpm(RPM_PIN, RPM_SAMPLES);
 static OneWire wire(GPIO_NUM_15);
 static DallasTemperature temp(&wire);
 static std::vector<uint64_t> sensors;
@@ -44,8 +44,8 @@ static Average<uint16_t, 5> rpmAvg;
 static SensorData sensorData = {};
 
 // BLE
-void setupBLE(const char *deviceName, uint32_t minIntervalMs, uint32_t maxIntervalMs);
-void updateBLE(void *data, size_t dataLen);
+void setupBLE(uint32_t minIntervalMs, uint32_t maxIntervalMs);
+void updateBLE(const uint8_t uuid[ESP_UUID_LEN_128], void *data, size_t dataLen);
 
 // Setup
 void setup()
@@ -89,7 +89,7 @@ void setup()
   }
 
   // Init BLE
-  setupBLE(BLE_DEVICE_NAME, BLE_ADV_INTERVAL - 10, BLE_ADV_INTERVAL + 10);
+  setupBLE(BLE_ADV_INTERVAL - 10, BLE_ADV_INTERVAL + 10);
 
   // Done
   pinMode(0, OUTPUT);
@@ -108,7 +108,6 @@ void loop()
   {
     temp.requestTemperatures();
 
-    int tempIndex = 0;
     for (uint64_t addr : sensors)
     {
       float c = temp.getTempC((uint8_t *)&addr);
@@ -116,11 +115,9 @@ void loop()
       {
         highestTemp = c;
       }
-      if (tempIndex < SENSOR_DATA_TEMP_LEN)
-      {
-        sensorData.temperatures[tempIndex++] = (uint16_t)(c * 10);
-      }
     }
+
+    sensorData.temperature = highestTemp * 10;
   }
 
   // Calculate fan speed
@@ -133,7 +130,6 @@ void loop()
 
   // Control PWM
   pwm.duty(dutyPercent * pwm.maxDuty() / 100U);
-  sensorData.duty = roundf(pwm.duty() * 100.0f / pwm.maxDuty());
 
   // Readout
   auto rpmValue = rpm.measure();
@@ -141,7 +137,7 @@ void loop()
   sensorData.rpm = rpmAvg.value();
 
   // Update BLE
-  updateBLE(&sensorData, sizeof(sensorData));
+  updateBLE(BLE_SERVICE_UUID, &sensorData, sizeof(sensorData));
 
   // Status LED
   static auto status = false;

@@ -4,24 +4,7 @@
 #include <esp_gap_ble_api.h>
 #include <esp32-hal-bt.h>
 
-const uint8_t METRICS_SERVICE_UUID[ESP_UUID_LEN_128] = {0x54, 0x59, 0xfc, 0xae, 0x55, 0x99, 0x4d, 0x82, 0x9f, 0xde, 0x1a, 0x1d, 0x47, 0x6b, 0x59, 0xeb};
-
 // Data
-static esp_ble_adv_data_t advData = {
-    .set_scan_rsp = false,
-    .include_name = true,
-    .include_txpower = false,
-    .min_interval = 0,
-    .max_interval = 0,
-    .appearance = 0x00,
-    .manufacturer_len = 0,
-    .p_manufacturer_data = NULL,
-    .service_data_len = 0,
-    .p_service_data = nullptr,
-    .service_uuid_len = 0,
-    .p_service_uuid = nullptr,
-    .flag = (ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT),
-};
 static esp_ble_adv_params_t advParams = {
     .adv_int_min = 0, // Set in setup
     .adv_int_max = 0, // Set in setup
@@ -34,7 +17,7 @@ static esp_ble_adv_params_t advParams = {
 };
 
 // Setup
-void setupBLE(const char *deviceName, uint32_t minIntervalMs, uint32_t maxIntervalMs)
+void setupBLE(uint32_t minIntervalMs, uint32_t maxIntervalMs)
 {
   esp_err_t err;
 
@@ -90,20 +73,6 @@ void setupBLE(const char *deviceName, uint32_t minIntervalMs, uint32_t maxInterv
     return;
   }
 
-  err = esp_ble_gap_set_device_name(deviceName);
-  if (err != ESP_OK)
-  {
-    log_e("esp_ble_gap_set_device_name failed: %d %s", err, esp_err_to_name(err));
-    return;
-  }
-
-  err = esp_ble_gap_config_adv_data(&advData);
-  if (err != ESP_OK)
-  {
-    log_e("esp_ble_gap_config_adv_data failed: %d %s", err, esp_err_to_name(err));
-    return;
-  }
-
   err = esp_ble_gap_start_advertising(&advParams);
   if (err != ESP_OK)
   {
@@ -114,25 +83,49 @@ void setupBLE(const char *deviceName, uint32_t minIntervalMs, uint32_t maxInterv
   log_i("ble started");
 }
 
-
-// NOTE data must not be deallocated
-void updateBLE(void *data, size_t dataLen)
+void updateBLE(const uint8_t uuid[ESP_UUID_LEN_128], void *data, size_t dataLen)
 {
-  // Store
+  if (dataLen > 8)
+  {
+    log_e("adv data too long (%d bytes), max is 8 bytes", dataLen);
+    return;
+  }
 
-  // TODO
-  advData.p_service_uuid = const_cast<uint8_t *>(METRICS_SERVICE_UUID);
-  advData.service_uuid_len = ESP_UUID_LEN_128;
-  advData.p_service_data = static_cast<uint8_t *>(data);
-  advData.service_data_len = dataLen;
-  // advData.p_manufacturer_data = static_cast<uint8_t *>(data);
-  // advData.manufacturer_len = dataLen;
+  // Prepare
+  static uint8_t advData[ESP_BLE_ADV_DATA_LEN_MAX] = {0};
+
+  uint8_t *p = advData;
+
+  // Flag (3 bytes)
+  {
+    *p++ = 2;
+    *p++ = ESP_BLE_AD_TYPE_FLAG;
+    *p++ = ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT;
+  }
+
+  // UUID (18 bytes)
+  {
+    *p++ = 1 + ESP_UUID_LEN_128;
+    *p++ = ESP_BLE_AD_TYPE_128SRV_CMPL;
+    memcpy(p, uuid, ESP_UUID_LEN_128);
+    p += ESP_UUID_LEN_128;
+  }
+
+  // Data (2+len bytes)
+  {
+    *p++ = 1 + dataLen;
+    *p++ = ESP_BLE_AD_TYPE_SERVICE_DATA;
+    memcpy(p, data, dataLen);
+    p += dataLen;
+  }
 
   // Update
-  auto err = esp_ble_gap_config_adv_data(&advData);
+  uint32_t advDataLen = p - advData;
+
+  auto err = esp_ble_gap_config_adv_data_raw(advData, advDataLen);
   if (err != ESP_OK)
   {
-    log_e("esp_ble_gap_config_adv_data failed: %d %s", err, esp_err_to_name(err));
+    log_e("esp_ble_gap_config_adv_data_raw failed: %d %s (%d bytes) %d", err, esp_err_to_name(err), advDataLen, dataLen);
     return;
   }
 }
