@@ -4,6 +4,8 @@
 #include <esp_gap_ble_api.h>
 #include <esp32-hal-bt.h>
 
+const uint8_t METRICS_SERVICE_UUID[ESP_UUID_LEN_128] = {0x54, 0x59, 0xfc, 0xae, 0x55, 0x99, 0x4d, 0x82, 0x9f, 0xde, 0x1a, 0x1d, 0x47, 0x6b, 0x59, 0xeb};
+
 // Data
 static esp_ble_adv_data_t advData = {
     .set_scan_rsp = false,
@@ -12,8 +14,8 @@ static esp_ble_adv_data_t advData = {
     .min_interval = 0,
     .max_interval = 0,
     .appearance = 0x00,
-    .manufacturer_len = 0,       // Set in setup
-    .p_manufacturer_data = NULL, // Set in setup
+    .manufacturer_len = 0,
+    .p_manufacturer_data = NULL,
     .service_data_len = 0,
     .p_service_data = nullptr,
     .service_uuid_len = 0,
@@ -112,33 +114,25 @@ void setupBLE(const char *deviceName, uint32_t minIntervalMs, uint32_t maxInterv
   log_i("ble started");
 }
 
+
+// NOTE data must not be deallocated
 void updateBLE(void *data, size_t dataLen)
 {
   // Store
-  advData.p_manufacturer_data = static_cast<uint8_t *>(data);
-  advData.manufacturer_len = dataLen;
 
-  // Stop
-  auto err = esp_ble_gap_stop_advertising();
-  if (err != ESP_OK)
-  {
-    log_e("esp_ble_gap_stop_advertising failed: %d %s", err, esp_err_to_name(err));
-    return;
-  }
+  // TODO
+  advData.p_service_uuid = const_cast<uint8_t *>(METRICS_SERVICE_UUID);
+  advData.service_uuid_len = ESP_UUID_LEN_128;
+  advData.p_service_data = static_cast<uint8_t *>(data);
+  advData.service_data_len = dataLen;
+  // advData.p_manufacturer_data = static_cast<uint8_t *>(data);
+  // advData.manufacturer_len = dataLen;
 
   // Update
-  err = esp_ble_gap_config_adv_data(&advData);
+  auto err = esp_ble_gap_config_adv_data(&advData);
   if (err != ESP_OK)
   {
     log_e("esp_ble_gap_config_adv_data failed: %d %s", err, esp_err_to_name(err));
-    return;
-  }
-
-  // Restart
-  err = esp_ble_gap_start_advertising(&advParams);
-  if (err != ESP_OK)
-  {
-    log_e("esp_ble_gap_start_advertising failed: %d %s", err, esp_err_to_name(err));
     return;
   }
 }
