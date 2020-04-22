@@ -9,6 +9,7 @@
 #include "Pwm.h"
 #include "Rpm.h"
 #include "Average.h"
+#include "SensorData.h"
 
 // Config
 const auto LO_THERSHOLD_TEMP_C = 30;
@@ -23,16 +24,7 @@ const auto PWM_RESOLUTION = LEDC_TIMER_8_BIT;
 const auto RPM_PIN = GPIO_NUM_39;
 const auto RPM_SAMPLES = 10;
 
-const uint8_t BLE_SERVICE_UUID[ESP_UUID_LEN_128] = {0x54, 0x59, 0xfc, 0xae, 0x55, 0x99, 0x4d, 0x82, 0x9f, 0xde, 0x1a, 0x1d, 0x47, 0x6b, 0x59, 0xeb};
 const auto BLE_ADV_INTERVAL = 500;
-
-// Data
-struct __attribute__((packed)) SensorData
-{
-  uint16_t rpm;
-  uint16_t temperature;
-  uint32_t uptime;
-};
 
 // Devices
 static Pwm pwm(PWM_PIN, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION);
@@ -137,7 +129,7 @@ void loop()
   sensorData.rpm = rpmAvg.value();
 
   // Update BLE
-  updateBLE(BLE_SERVICE_UUID, &sensorData, sizeof(sensorData));
+  updateBLE(SENSOR_SERVICE_UUID, &sensorData, sizeof(sensorData));
 
   // Status LED
   static auto status = false;
