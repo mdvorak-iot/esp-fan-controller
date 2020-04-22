@@ -91,7 +91,7 @@ void updateBLE(const uint8_t uuid[ESP_UUID_LEN_128], void *data, size_t dataLen)
     return;
   }
 
-  // Prepare
+  // Prepare (note: intentionally static, so we don't have to track when data are copied into BLE stack)
   static uint8_t advData[ESP_BLE_ADV_DATA_LEN_MAX] = {0};
 
   uint8_t *p = advData;

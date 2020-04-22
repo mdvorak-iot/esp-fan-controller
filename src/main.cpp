@@ -41,7 +41,6 @@ static OneWire wire(GPIO_NUM_15);
 static DallasTemperature temp(&wire);
 static std::vector<uint64_t> sensors;
 static Average<uint16_t, 5> rpmAvg;
-static SensorData sensorData = {};
 
 // BLE
 void setupBLE(uint32_t minIntervalMs, uint32_t maxIntervalMs);
@@ -99,6 +98,7 @@ void setup()
 
 void loop()
 {
+  SensorData sensorData = {};
   sensorData.uptime = millis() / 1000;
 
   // Read temperatures
