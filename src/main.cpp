@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <atomic>
 #include <esp_bt.h>
 #include <esp_bt_device.h>
 #include <esp_bt_main.h>
@@ -12,19 +13,22 @@
 #include "SensorData.h"
 
 // Config
-const auto LO_THERSHOLD_TEMP_C = 30;
-const auto HI_THERSHOLD_TEMP_C = 60;
-const auto LO_THERSHOLD_DUTY = 50u;
+const auto LO_THERSHOLD_TEMP_C = 25;
+const auto HI_THERSHOLD_TEMP_C = 50;
+const auto LO_THERSHOLD_DUTY = 30u;
 const auto HI_THERSHOLD_DUTY = 99u;
 
 const auto PWM_PIN = GPIO_NUM_2;
-const auto PWM_FREQ = 50000u;
-const auto PWM_RESOLUTION = LEDC_TIMER_8_BIT;
+const auto PWM_FREQ = 25000u;
+const auto PWM_RESOLUTION = LEDC_TIMER_9_BIT;
 
 const auto RPM_PIN = GPIO_NUM_39;
 const auto RPM_SAMPLES = 10;
+const auto RPM_AVERAGE = 10;
+const auto RPM_INTERVAL = 100;
 
-const auto BLE_ADV_INTERVAL = 500;
+const auto MAIN_LOOP_INTERVAL = 1000;
+const auto BLE_ADV_INTERVAL = 320;
 
 // Devices
 static Pwm pwm(PWM_PIN, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION);
@@ -32,13 +36,16 @@ static Rpm rpm(RPM_PIN, RPM_SAMPLES);
 static OneWire wire(GPIO_NUM_15);
 static DallasTemperature temp(&wire);
 static std::vector<uint64_t> sensors;
-static Average<uint16_t, 5> rpmAvg;
+static Average<uint16_t, RPM_AVERAGE> rpmAvg;
+static std::atomic<uint16_t> rpmValue;
 
 // BLE
 void setupBLE(uint32_t minIntervalMs, uint32_t maxIntervalMs);
 void updateBLE(const uint8_t uuid[ESP_UUID_LEN_128], void *data, size_t dataLen);
 
 // Setup
+void loopRpm(void *);
+
 void setup()
 {
   // Enable ISR
@@ -78,6 +85,7 @@ void setup()
   {
     log_e("rpm.begin failed: %d %s", err, esp_err_to_name(err));
   }
+  xTaskCreate(loopRpm, "loopRpm", 10000, nullptr, tskIDLE_PRIORITY, nullptr);
 
   // Init BLE
   setupBLE(BLE_ADV_INTERVAL - 10, BLE_ADV_INTERVAL + 10);
@@ -91,7 +99,6 @@ void setup()
 void loop()
 {
   SensorData sensorData = {};
-  sensorData.uptime = millis() / 1000;
 
   // Read temperatures
   float highestTemp = DEVICE_DISCONNECTED_C;
@@ -123,12 +130,10 @@ void loop()
   // Control PWM
   pwm.duty(dutyPercent * pwm.maxDuty() / 100U);
 
-  // Readout
-  auto rpmValue = rpm.measure();
-  rpmAvg.add(rpmValue);
-  sensorData.rpm = rpmAvg.value();
-
   // Update BLE
+  sensorData.uptime = millis() / 1000;
+  sensorData.rpm = rpmValue;
+
   updateBLE(SENSOR_SERVICE_UUID, &sensorData, sizeof(sensorData));
 
   // Status LED
@@ -139,5 +144,18 @@ void loop()
   // Wait
   static auto lastLoop = millis();
   auto elapsed = millis() - lastLoop;
-  delay(elapsed > 100 ? 100 : 100 - elapsed);
+
+  delay(elapsed >= MAIN_LOOP_INTERVAL ? 1 : MAIN_LOOP_INTERVAL - elapsed);
+  lastLoop = millis();
+}
+
+void loopRpm(void *)
+{
+  for (;;)
+  {
+    auto r = rpm.measure();
+    rpmAvg.add(r);
+    rpmValue.store(rpmAvg.value());
+    delay(RPM_INTERVAL);
+  }
 }

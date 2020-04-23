@@ -122,10 +122,24 @@ void updateBLE(const uint8_t uuid[ESP_UUID_LEN_128], void *data, size_t dataLen)
   // Update
   uint32_t advDataLen = p - advData;
 
-  auto err = esp_ble_gap_config_adv_data_raw(advData, advDataLen);
+  auto err = esp_ble_gap_stop_advertising();
+  if (err != ESP_OK)
+  {
+    log_e("esp_ble_gap_stop_advertising failed: %d %s (%d bytes) %d", err, esp_err_to_name(err), advDataLen, dataLen);
+    return;
+  }
+
+  err = esp_ble_gap_config_adv_data_raw(advData, advDataLen);
   if (err != ESP_OK)
   {
     log_e("esp_ble_gap_config_adv_data_raw failed: %d %s (%d bytes) %d", err, esp_err_to_name(err), advDataLen, dataLen);
+    return;
+  }
+
+  err = esp_ble_gap_start_advertising(&advParams);
+  if (err != ESP_OK)
+  {
+    log_e("esp_ble_gap_start_advertising failed: %d %s (%d bytes) %d", err, esp_err_to_name(err), advDataLen, dataLen);
     return;
   }
 }
