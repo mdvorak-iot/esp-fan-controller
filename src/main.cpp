@@ -1,16 +1,10 @@
 #include <Arduino.h>
 #include <atomic>
-#include <esp_bt.h>
-#include <esp_bt_device.h>
-#include <esp_bt_main.h>
-#include <esp_gap_ble_api.h>
-#include <esp32-hal-bt.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include "Pwm.h"
 #include "Rpm.h"
 #include "Average.h"
-#include "SensorData.h"
 
 // Config
 const auto LO_THERSHOLD_TEMP_C = 25;
@@ -28,7 +22,6 @@ const auto RPM_AVERAGE = 10;
 const auto RPM_INTERVAL = 100;
 
 const auto MAIN_LOOP_INTERVAL = 1000;
-const auto BLE_ADV_INTERVAL = 320;
 
 // Devices
 static Pwm pwm(PWM_PIN, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION);
@@ -38,10 +31,6 @@ static DallasTemperature temp(&wire);
 static std::vector<uint64_t> sensors;
 static Average<uint16_t, RPM_AVERAGE> rpmAvg;
 static std::atomic<uint16_t> rpmValue;
-
-// BLE
-void setupBLE(uint32_t minIntervalMs, uint32_t maxIntervalMs);
-void updateBLE(const uint8_t uuid[ESP_UUID_LEN_128], void *data, size_t dataLen);
 
 // Setup
 void loopRpm(void *);
@@ -87,9 +76,6 @@ void setup()
   }
   xTaskCreate(loopRpm, "loopRpm", 10000, nullptr, tskIDLE_PRIORITY, nullptr);
 
-  // Init BLE
-  setupBLE(BLE_ADV_INTERVAL - 10, BLE_ADV_INTERVAL + 10);
-
   // Done
   pinMode(0, OUTPUT);
   log_i("started");
@@ -98,8 +84,6 @@ void setup()
 
 void loop()
 {
-  SensorData sensorData = {};
-
   // Read temperatures
   float highestTemp = DEVICE_DISCONNECTED_C;
 
@@ -115,8 +99,6 @@ void loop()
         highestTemp = c;
       }
     }
-
-    sensorData.temperature = highestTemp * 10;
   }
 
   // Calculate fan speed
@@ -129,12 +111,6 @@ void loop()
 
   // Control PWM
   pwm.duty(dutyPercent * pwm.maxDuty() / 100U);
-
-  // Update BLE
-  sensorData.uptime = millis() / 1000;
-  sensorData.rpm = rpmValue;
-
-  updateBLE(SENSOR_SERVICE_UUID, &sensorData, sizeof(sensorData));
 
   // Status LED
   static auto status = false;
