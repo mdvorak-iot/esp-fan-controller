@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <WiFi.h>
 #include <atomic>
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -7,8 +8,8 @@
 #include "Average.h"
 
 // Config
-const auto LO_THERSHOLD_TEMP_C = 25;
-const auto HI_THERSHOLD_TEMP_C = 50;
+const auto LO_THERSHOLD_TEMP_C = 28;
+const auto HI_THERSHOLD_TEMP_C = 38;
 const auto LO_THERSHOLD_DUTY = 30u;
 const auto HI_THERSHOLD_DUTY = 99u;
 
@@ -32,8 +33,10 @@ static std::vector<uint64_t> sensors;
 static Average<uint16_t, RPM_AVERAGE> rpmAvg;
 static std::atomic<uint16_t> rpmValue;
 
+
 // Setup
 void loopRpm(void *);
+void setupHttp();
 
 void setup()
 {
@@ -75,6 +78,13 @@ void setup()
     log_e("rpm.begin failed: %d %s", err, esp_err_to_name(err));
   }
   xTaskCreate(loopRpm, "loopRpm", 10000, nullptr, tskIDLE_PRIORITY, nullptr);
+
+  // WiFi
+  WiFi.mode(WIFI_MODE_STA);
+  WiFi.begin("Tuleni", "Papousek141"); // TODO
+
+  // HTTP
+  setupHttp();
 
   // Done
   pinMode(0, OUTPUT);
