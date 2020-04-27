@@ -1,30 +1,32 @@
 #include <Arduino.h>
+#include <sstream>
+#include <iomanip>
 #include <esp_http_server.h>
+#include "Values.h"
 
 static httpd_handle_t server;
 
+static std::string ROOT_HTML = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <title>RAD</title>\n    <link rel=\"stylesheet\" href=\"https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css\"\n          crossorigin=\"anonymous\">\n    <script src=\"https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js\"\n            crossorigin=\"anonymous\"></script>\n    <script src=\"https://www.chartjs.org/dist/2.9.3/Chart.min.js\" crossorigin=\"anonymous\"></script>\n    <style>body {\n        padding: 10px;\n    }</style>\n</head>\n<body>\n<div>\n    <canvas id=\"graph\" style=\"width: 100%; height: 300px;\"></canvas>\n</div>\n<div>\n    <p>\n        <label>Temperature</label>: <span id=\"temp\"></span>&nbsp;&nbsp;\n        <label>RPM</label>: <span id=\"rpm\"></span>&nbsp;&nbsp;\n        <label>Duty</label>: <span id=\"duty\"></span>&nbsp;&nbsp;\n        <label>Uptime</label>: <span id=\"uptime\"></span>\n</div>\n<script>\n    const MAX_ENTRIES = 300;\n\n    let chart = new Chart('graph', {\n        data: {\n            datasets: [\n                {\n                    label: 'Temperature',\n                    type: 'line',\n                    fill: false,\n                    pointRadius: 0,\n                    yAxisID: 'temp',\n                    borderColor: '#A03333',\n                    backgroundColor: '#A03333'\n                },\n                {\n                    label: 'Fan',\n                    type: 'line',\n                    fill: false,\n                    pointRadius: 0,\n                    yAxisID: 'rpm',\n                    borderColor: '#009900',\n                    backgroundColor: '#009900'\n                }\n            ]\n        },\n        options: {\n            maintainAspectRatio: false,\n            scales: {\n                xAxes: [{type: 'time', time: {unit: 'second'}, bounds: 'ticks'}],\n                yAxes: [{\n                    id: 'temp'\n                    scaleLabel: {\n                        display: true,\n                        labelString: '°C'\n                    },\n                    ticks: {beginAtZero: true}\n                }, {\n                    id: 'rpm',\n                    scaleLabel: {\n                        display: true,\n                        labelString: 'RPM'\n                    },\n                    ticks: {beginAtZero: true},\n                    position: 'right'\n                }]\n            },\n            tooltips: {\n                intersect: false,\n                mode: 'index'\n            }\n        }\n    });\n\n    chart.config.data.datasets[0].data.push({x: Date.now() - MAX_ENTRIES * 1000, y: 0});\n    chart.config.data.datasets[1].data.push({x: Date.now() - MAX_ENTRIES * 1000, y: 0});\n\n    function add(json) {\n        let now = Date.now();\n        chart.config.data.datasets[0].data.push({x: now, y: json.temp || 0});\n        chart.config.data.datasets[1].data.push({x: now, y: json.rpm || 0});\n        chart.update();\n\n        document.getElementById('temp').innerText = json.temp || 0;\n        document.getElementById('duty').innerText = json.duty || 0;\n        document.getElementById('rpm').innerText = json.rpm || 0;\n        document.getElementById('uptime').innerText = ((json.up || 0) / 1000).toFixed(0);\n    }\n\n    function update() {\n        fetch(new Request('/data'))\n            .then(response => {\n                if (response.status === 200) {\n                    return response.json();\n                }\n            })\n            .then(add)\n    }\n\n    setInterval(update, 1000);\n</script>\n</body>\n</html>\n";
+;
+
 esp_err_t getRootHandler(httpd_req_t *req)
 {
-    const char *HTML_START = "<!DOCTYPE html>\n"
-                             "<html>"
-                             "<head>"
-                             "<title>RAD</title>"
-                             "<link rel=\"stylesheet\" href=\"https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css\">"
-                             "<script src=\"https://www.chartjs.org/dist/2.9.3/Chart.min.js\"></script>"
-                             "</head>"
-                             "<body>"
-                             "<div>"
-                             "<canvas id=\"graph\"></canvas>"
-                             "</div>"
-                             "</body>"
-                             "</html>";
+    httpd_resp_send(req, ROOT_HTML.c_str(), ROOT_HTML.length());
+    return ESP_OK;
+}
 
-    // TODO
-    std::string html("<!DOCTYPE html><html><head><title>RAD</title></head><body>");
-    html.append("Duty Cycle: ").append("<br/>");
-    html.append("</body></html>");
+esp_err_t getDataHandler(httpd_req_t *req)
+{
+    std::ostringstream json;
+    json << "{\"temp\":" << std::setprecision(1) << Values::temperature.load() << ',';
+    json << "\"rpm\":" << Values::rpm.load() << ',';
+    json << "\"duty\":" << (int)Values::duty.load() << ',';
+    json << "\"up\":" << millis();
+    json << "}";
 
-    httpd_resp_send(req, html.c_str(), html.length());
+    auto resp = json.str();
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, resp.c_str(), resp.length());
     return ESP_OK;
 }
 
@@ -49,4 +51,5 @@ void setupHttp()
 
     // Register URI handlers
     registerHandler("/", HTTP_GET, getRootHandler);
+    registerHandler("/data", HTTP_GET, getDataHandler);
 }

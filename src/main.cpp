@@ -6,6 +6,7 @@
 #include "Pwm.h"
 #include "Rpm.h"
 #include "Average.h"
+#include "Values.h"
 
 // Config
 const auto LO_THERSHOLD_TEMP_C = 28;
@@ -31,8 +32,6 @@ static OneWire wire(GPIO_NUM_15);
 static DallasTemperature temp(&wire);
 static std::vector<uint64_t> sensors;
 static Average<uint16_t, RPM_AVERAGE> rpmAvg;
-static std::atomic<uint16_t> rpmValue;
-
 
 // Setup
 void loopRpm(void *);
@@ -81,7 +80,11 @@ void setup()
 
   // WiFi
   WiFi.mode(WIFI_MODE_STA);
-  WiFi.begin("Tuleni", "Papousek141"); // TODO
+  WiFi.begin();
+  // TODO setup connection
+
+  WiFi.onEvent([](WiFiEvent_t event, system_event_info_t info) { log_i("WiFi connected to %s", WiFi.SSID().c_str()); }, SYSTEM_EVENT_STA_CONNECTED);
+  WiFi.onEvent([](WiFiEvent_t event, system_event_info_t info) { log_i("WiFi got IP %s", WiFi.localIP().toString().c_str()); }, SYSTEM_EVENT_STA_GOT_IP);
 
   // HTTP
   setupHttp();
@@ -113,10 +116,13 @@ void loop()
 
   // Calculate fan speed
   uint32_t dutyPercent = HI_THERSHOLD_DUTY;
-  if (highestTemp != DEVICE_DISCONNECTED_C)
+  if (highestTemp != DEVICE_DISCONNECTED_C && highestTemp != 85.0)
   {
     auto value = constrain(highestTemp, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C);
     dutyPercent = map(value, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C, LO_THERSHOLD_DUTY, HI_THERSHOLD_DUTY);
+
+    Values::temperature.store(highestTemp);
+    Values::duty.store(value);
   }
 
   // Control PWM
@@ -141,7 +147,7 @@ void loopRpm(void *)
   {
     auto r = rpm.measure();
     rpmAvg.add(r);
-    rpmValue.store(rpmAvg.value());
+    Values::rpm.store(rpmAvg.value());
     delay(RPM_INTERVAL);
   }
 }
