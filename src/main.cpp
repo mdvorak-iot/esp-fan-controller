@@ -15,7 +15,7 @@ const auto HI_THERSHOLD_TEMP_C = 38;
 const auto LO_THERSHOLD_DUTY = 30u;
 const auto HI_THERSHOLD_DUTY = 99u;
 
-const auto PWM_PIN = GPIO_NUM_2;
+const auto PWM_PIN = GPIO_NUM_13;
 const auto PWM_FREQ = 25000u;
 const auto PWM_RESOLUTION = LEDC_TIMER_9_BIT;
 

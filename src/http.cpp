@@ -18,6 +18,7 @@ esp_err_t getRootHandler(httpd_req_t *req)
 esp_err_t getDataHandler(httpd_req_t *req)
 {
     std::ostringstream json;
+    
     json << "{\"temp\":" << std::fixed << std::setprecision(1) << Values::temperature.load() << ',';
     json << "\"rpm\":" << Values::rpm.load() << ',';
     json << "\"duty\":" << (int)Values::duty.load() << ',';
@@ -26,6 +27,26 @@ esp_err_t getDataHandler(httpd_req_t *req)
 
     auto resp = json.str();
     httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, resp.c_str(), resp.length());
+    return ESP_OK;
+}
+
+esp_err_t getMetricsHandler(httpd_req_t *req)
+{
+    std::ostringstream m;
+
+    m << "# HELP hw_temp_celsius Temperature in Celsius\n";
+    m << "# TYPE hw_temp_celsius gauge\n";
+    m << "hw_temp_celsius{sensor=\"rad_intake\"} " << std::fixed << std::setprecision(1) << Values::temperature.load() << '\n';
+    m << "# HELP hw_fan_rpm Fan RPM\n";
+    m << "# TYPE hw_fan_rpm gauge\n";
+    m << "hw_fan_rpm{sensor=\"rad\"} " << Values::rpm.load() << '\n';
+    m << "# HELP hw_uptime Milliseconds from device power-up\n";
+    m << "# TYPE hw_uptime counter\n";
+    m << "hw_uptime{device=\"rad_esp\"} " << millis() << '\n';
+
+    auto resp = m.str();
+    httpd_resp_set_type(req, "text/plain");
     httpd_resp_send(req, resp.c_str(), resp.length());
     return ESP_OK;
 }
@@ -52,4 +73,5 @@ void setupHttp()
     // Register URI handlers
     registerHandler("/", HTTP_GET, getRootHandler);
     registerHandler("/data", HTTP_GET, getDataHandler);
+    registerHandler("/metrics", HTTP_GET, getMetricsHandler);
 }
