@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <mdns.h>
 #include <atomic>
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -86,6 +87,11 @@ void setup()
   WiFi.onEvent([](WiFiEvent_t event, system_event_info_t info) { log_i("WiFi connected to %s", WiFi.SSID().c_str()); }, SYSTEM_EVENT_STA_CONNECTED);
   WiFi.onEvent([](WiFiEvent_t event, system_event_info_t info) { log_i("WiFi got IP %s", WiFi.localIP().toString().c_str()); }, SYSTEM_EVENT_STA_GOT_IP);
 
+  // mDNS
+  mdns_init();
+  mdns_hostname_set("rad");
+  mdns_service_add(nullptr, "_http", "_tcp", 80, nullptr, 0);
+
   // HTTP
   setupHttp();
 
@@ -122,8 +128,8 @@ void loop()
     dutyPercent = map(value, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C, LO_THERSHOLD_DUTY, HI_THERSHOLD_DUTY);
 
     Values::temperature.store(highestTemp);
-    Values::duty.store(value);
   }
+  Values::duty.store(dutyPercent);
 
   // Control PWM
   pwm.duty(dutyPercent * pwm.maxDuty() / 100U);
