@@ -19,7 +19,10 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -U platformio
-    - name: Build
+    - name: Update libraries
+      run: |
+        platformio update
+    - name: Release
       run: |
         export PLATFORMIO_BUILD_FLAGS='-DVERSION=\"${{github.ref}}\"'
         platformio run -e Release
