@@ -19,15 +19,21 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -U platformio
-    - name: Update libraries
-      run: |
-        platformio update
+    - name: Get upload URL
+      id: get
+      uses: bruceadams/get-release@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
     - name: Release
       run: |
-        export PLATFORMIO_BUILD_FLAGS='-DVERSION=\"${{github.ref}}\"'
+        export PLATFORMIO_BUILD_FLAGS='-DVERSION=\"${{ github.ref }}\"'
         platformio run -e Release
     - name: Upload firmware.bin
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        name: firmware.bin
-        path: .pio/build/Release/firmware.bin
+        upload_url: ${{ steps.get.outputs.upload_url }}
+        asset_path: .pio/build/Release/firmware.bin
+        asset_name: my-firmware.bin
+        asset_content_type: application/octet-stream
