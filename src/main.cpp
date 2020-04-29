@@ -4,6 +4,7 @@
 #include <atomic>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <EspWifiSetup.h>
 #include "Pwm.h"
 #include "Rpm.h"
 #include "Average.h"
@@ -15,7 +16,7 @@ const auto HI_THERSHOLD_TEMP_C = 38;
 const auto LO_THERSHOLD_DUTY = 30u;
 const auto HI_THERSHOLD_DUTY = 99u;
 
-const auto PWM_PIN = GPIO_NUM_13;
+const auto PWM_PIN = GPIO_NUM_33;
 const auto PWM_FREQ = 25000u;
 const auto PWM_RESOLUTION = LEDC_TIMER_9_BIT;
 
@@ -38,6 +39,12 @@ static Average<uint16_t, RPM_AVERAGE> rpmAvg;
 void loopRpm(void *);
 void setupHttp();
 
+esp_err_t setDuty(uint8_t dutyPercent)
+{
+  // NOTE inverted output via transistor
+  return pwm.duty(pwm.maxDuty() - dutyPercent * pwm.maxDuty() / 100U);
+}
+
 void setup()
 {
   // Enable ISR
@@ -48,7 +55,7 @@ void setup()
 
   // Power PWM
   ESP_ERROR_CHECK(pwm.begin());
-  ESP_ERROR_CHECK(pwm.duty(pwm.maxDuty() - 1));
+  ESP_ERROR_CHECK(setDuty(HI_THERSHOLD_DUTY));
 
   // Init Sensors
   temp.begin();
@@ -80,12 +87,7 @@ void setup()
   xTaskCreate(loopRpm, "loopRpm", 10000, nullptr, tskIDLE_PRIORITY, nullptr);
 
   // WiFi
-  WiFi.mode(WIFI_MODE_STA);
-  WiFi.begin();
-  // TODO setup connection
-
-  WiFi.onEvent([](WiFiEvent_t event, system_event_info_t info) { log_i("WiFi connected to %s", WiFi.SSID().c_str()); }, SYSTEM_EVENT_STA_CONNECTED);
-  WiFi.onEvent([](WiFiEvent_t event, system_event_info_t info) { log_i("WiFi got IP %s", WiFi.localIP().toString().c_str()); }, SYSTEM_EVENT_STA_GOT_IP);
+  WiFiSetup(WIFI_SETUP_WPS);
 
   // mDNS
   mdns_init();
@@ -132,7 +134,7 @@ void loop()
   Values::duty.store(dutyPercent);
 
   // Control PWM
-  pwm.duty(dutyPercent * pwm.maxDuty() / 100U);
+  setDuty(dutyPercent);
 
   // Status LED
   static auto status = false;
