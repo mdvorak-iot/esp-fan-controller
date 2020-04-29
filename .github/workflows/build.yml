@@ -23,7 +23,7 @@ jobs:
         pip install -U platformio
     - name: Update libraries
       run: |
-        platformio update
+        platformio lib update
     - name: Build
       run: |
         platformio run
