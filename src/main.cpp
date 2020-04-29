@@ -5,6 +5,7 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <EspWifiSetup.h>
+#include "version.h"
 #include "Pwm.h"
 #include "Rpm.h"
 #include "Average.h"
@@ -99,7 +100,7 @@ void setup()
 
   // Done
   pinMode(0, OUTPUT);
-  log_i("started");
+  log_i("started %s", VERSION);
   delay(500);
 }
 
