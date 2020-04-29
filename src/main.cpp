@@ -14,7 +14,7 @@
 const auto LO_THERSHOLD_TEMP_C = 28;
 const auto HI_THERSHOLD_TEMP_C = 38;
 const auto LO_THERSHOLD_DUTY = 30u;
-const auto HI_THERSHOLD_DUTY = 99u;
+const auto HI_THERSHOLD_DUTY = 97u;
 
 const auto PWM_PIN = GPIO_NUM_33;
 const auto PWM_FREQ = 25000u;
@@ -123,7 +123,7 @@ void loop()
   }
 
   // Calculate fan speed
-  uint32_t dutyPercent = HI_THERSHOLD_DUTY;
+  uint32_t dutyPercent = 50;//HI_THERSHOLD_DUTY;
   if (highestTemp != DEVICE_DISCONNECTED_C && highestTemp != 85.0)
   {
     auto value = constrain(highestTemp, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C);
