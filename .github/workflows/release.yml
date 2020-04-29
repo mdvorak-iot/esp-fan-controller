@@ -26,3 +26,8 @@ jobs:
       run: |
         export PLATFORMIO_BUILD_FLAGS='-DVERSION=\"${{github.ref}}\"'
         platformio run -e Release
+    - name: Upload firmware.bin
+      uses: actions/upload-artifact@v2
+      with:
+        name: firmware.bin
+        path: .pio/build/Release/firmware.bin
