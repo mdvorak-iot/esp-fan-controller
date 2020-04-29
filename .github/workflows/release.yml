@@ -2,7 +2,7 @@ name: platformio release
 
 on:
   release:
-    types: [published,prereleased]
+    types: [ published ]
 
 jobs:
   build:
