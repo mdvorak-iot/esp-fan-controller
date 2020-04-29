@@ -19,9 +19,9 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -U platformio
-    - name: Get upload URL
-      id: get
-      uses: bruceadams/get-release@v1
+    - name: Get the upload URL for a release
+      uses: bruceadams/get-release@v1.2.0
+      id: get_release
       env:
         GITHUB_TOKEN: ${{ github.token }}
     - name: Release
@@ -33,7 +33,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ steps.get.outputs.upload_url }}
+        upload_url: ${{ steps.get_release.outputs.upload_url }}
         asset_path: .pio/build/Release/firmware.bin
         asset_name: my-firmware.bin
         asset_content_type: application/octet-stream
