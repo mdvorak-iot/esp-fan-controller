@@ -21,9 +21,6 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -U platformio
-    - name: Update libraries
-      run: |
-        platformio lib update
     - name: Build
       run: |
         platformio run
