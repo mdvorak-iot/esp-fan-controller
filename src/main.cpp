@@ -1,32 +1,17 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <mdns.h>
+#include <esp_https_ota.h>
 #include <atomic>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <EspWifiSetup.h>
 #include "version.h"
+#include "config.h"
 #include "Pwm.h"
 #include "Rpm.h"
 #include "Average.h"
 #include "Values.h"
-
-// Config
-const auto LO_THERSHOLD_TEMP_C = 28;
-const auto HI_THERSHOLD_TEMP_C = 38;
-const auto LO_THERSHOLD_DUTY = 30u;
-const auto HI_THERSHOLD_DUTY = 97u;
-
-const auto PWM_PIN = GPIO_NUM_33;
-const auto PWM_FREQ = 25000u;
-const auto PWM_RESOLUTION = LEDC_TIMER_9_BIT;
-
-const auto RPM_PIN = GPIO_NUM_39;
-const auto RPM_SAMPLES = 10;
-const auto RPM_AVERAGE = 10;
-const auto RPM_INTERVAL = 100;
-
-const auto MAIN_LOOP_INTERVAL = 1000;
 
 // Devices
 static Pwm pwm(PWM_PIN, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION);
@@ -124,13 +109,14 @@ void loop()
   }
 
   // Calculate fan speed
-  uint32_t dutyPercent = 50;//HI_THERSHOLD_DUTY;
+  uint32_t dutyPercent = 50; //HI_THERSHOLD_DUTY;
   if (highestTemp != DEVICE_DISCONNECTED_C && highestTemp != 85.0)
   {
     auto value = constrain(highestTemp, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C);
     dutyPercent = map(value, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C, LO_THERSHOLD_DUTY, HI_THERSHOLD_DUTY);
 
     Values::temperature.store(highestTemp);
+    Values::temperatureReadout.store(millis());
   }
   Values::duty.store(dutyPercent);
 
