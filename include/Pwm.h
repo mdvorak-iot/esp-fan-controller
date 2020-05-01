@@ -7,19 +7,20 @@
 class Pwm
 {
 public:
-    Pwm(gpio_num_t pin, ledc_timer_t timer, ledc_channel_t channel, uint32_t frequency, ledc_timer_bit_t resolution)
+    Pwm(gpio_num_t pin, ledc_timer_t timer, ledc_channel_t channel, uint32_t frequency, ledc_timer_bit_t resolution, bool inverted = false)
         : _timer(timer),
           _channel(channel),
           _pin(pin),
           _frequency(frequency),
           _resolution(resolution),
-          _maxDuty((1UL << _resolution) - 1)
+          _maxDuty((1UL << _resolution) - 1),
+          _inverted(inverted)
     {
     }
 
     esp_err_t begin()
     {
-        // Power PWM
+        // Timer
         ledc_timer_config_t timerConfig = {};
         timerConfig.timer_num = _timer;
         timerConfig.speed_mode = LEDC_HIGH_SPEED_MODE;
@@ -31,23 +32,23 @@ public:
             return r;
         }
 
-        // Power Channel
+        // Channel
         ledc_channel_config_t channelConfig = {};
         channelConfig.timer_sel = _timer;
         channelConfig.channel = _channel;
         channelConfig.gpio_num = _pin;
         channelConfig.speed_mode = LEDC_HIGH_SPEED_MODE;
-        channelConfig.duty = 0;
+        channelConfig.duty = _inverted ? _maxDuty : 0;
         r = ledc_channel_config(&channelConfig);
         return r;
     }
 
-    uint32_t maxDuty() const
+    inline uint32_t maxDuty() const
     {
         return _maxDuty;
     }
 
-    uint32_t duty() const
+    inline uint32_t duty() const
     {
         return _duty;
     }
@@ -66,7 +67,7 @@ public:
         }
 
         // Update
-        auto r = ledc_set_duty_and_update(LEDC_HIGH_SPEED_MODE, _channel, duty, 0);
+        auto r = ledc_set_duty_and_update(LEDC_HIGH_SPEED_MODE, _channel, _inverted ? _maxDuty - duty : duty, 0);
         if (r == ESP_OK)
         {
             _duty = duty;
@@ -84,7 +85,8 @@ private:
     ledc_channel_t _channel;
     gpio_num_t _pin;
     uint32_t _frequency;
-    uint32_t _duty;
+    volatile uint32_t _duty;
     ledc_timer_bit_t _resolution;
     uint32_t _maxDuty;
+    bool _inverted;
 };
