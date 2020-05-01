@@ -10,7 +10,6 @@
 #include "config.h"
 #include "Pwm.h"
 #include "Rpm.h"
-#include "Average.h"
 #include "Values.h"
 
 // Devices
@@ -19,10 +18,8 @@ static Rpm rpm(RPM_PIN);
 static OneWire wire(GPIO_NUM_15);
 static DallasTemperature temp(&wire);
 static std::vector<uint64_t> sensors;
-static Average<uint16_t, RPM_AVERAGE> rpmAvg;
 
 // Setup
-void loopRpm(void *);
 void setupHttp();
 
 esp_err_t setDuty(uint8_t dutyPercent)
@@ -45,6 +42,7 @@ void setup()
 
   // Init Sensors
   temp.begin();
+  temp.setResolution(12);
 
   // Enumerate and store all sensors
   DeviceAddress addr = {};
@@ -71,10 +69,7 @@ void setup()
     log_e("rpm.begin failed: %d %s", err, esp_err_to_name(err));
   }
 
-  Rpm::start(rpm, rpm);
-
-  // TODO
-  xTaskCreate(loopRpm, "loopRpm", 10000, nullptr, tskIDLE_PRIORITY, nullptr);
+  Rpm::start(rpm);
 
   // WiFi
   WiFiSetup(WIFI_SETUP_WPS);
@@ -117,8 +112,8 @@ void loop()
   if (highestTemp != DEVICE_DISCONNECTED_C && highestTemp != 85.0)
   {
     auto value = constrain(highestTemp, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C);
-    // NOTE *10 to have precision while using long arithmetics
-    dutyPercent = map(value * 10, LO_THERSHOLD_TEMP_C * 10, HI_THERSHOLD_TEMP_C * 10, LO_THERSHOLD_DUTY, HI_THERSHOLD_DUTY);
+    // NOTE *100 to have precision while using long arithmetics
+    dutyPercent = map(value * 100, LO_THERSHOLD_TEMP_C * 100, HI_THERSHOLD_TEMP_C * 100, LO_THERSHOLD_DUTY, HI_THERSHOLD_DUTY);
 
     Values::duty.store(dutyPercent);
     Values::temperature.store(highestTemp);
@@ -127,6 +122,7 @@ void loop()
 
   // Control PWM
   setDuty(dutyPercent);
+  Values::rpm.store(rpm.value());
 
   // Status LED
   static auto status = false;
@@ -139,17 +135,4 @@ void loop()
 
   delay(elapsed >= MAIN_LOOP_INTERVAL ? 1 : MAIN_LOOP_INTERVAL - elapsed);
   lastLoop = millis();
-}
-
-void loopRpm(void *)
-{
-  for (;;)
-  {
-
-    // TODO
-    auto r = rpm.value();
-    rpmAvg.add(r);
-    Values::rpm.store(rpmAvg.value());
-    delay(RPM_INTERVAL);
-  }
 }

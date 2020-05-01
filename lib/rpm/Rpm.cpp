@@ -7,55 +7,71 @@
 const int16_t COUNTER_MAX = 32767;
 
 // This class is not thread-safe
-template <typename T>
-class Rpm::MovingWindow
+template <typename T, size_t C>
+class MovingWindow
 {
 public:
-    MovingWindow(size_t size)
-        : _index(0), _size(size), _values(new T[size])
+    MovingWindow()
+        : _index(0), _values{0}
     {
     }
 
-    ~MovingWindow()
+    inline size_t size() const
     {
-        delete[] _values;
+        return C;
     }
 
     void push(const T &value)
     {
-        _index = (_index + 1) % _size;
+        _index = (_index + 1) % C;
         _values[_index] = value;
     }
 
     T first() const
     {
-        return _values[(_index + 1) % _size];
+        return _values[(_index + 1) % C];
+    }
+
+    const T *values() const
+    {
+        return _values;
     }
 
 private:
     size_t _index;
-    size_t _size;
-    T *_values;
+    T _values[C];
 };
 
-struct Rpm::Snapshot
+struct Snapshot
 {
     unsigned long time;
     int16_t count;
+};
+
+struct Rpm::Sensor
+{
+    MovingWindow<Snapshot, Rpm::SAMPLES> counts;
+    MovingWindow<uint16_t, Rpm::AVERAGE> values;
+    uint32_t valueTotal;
+    volatile uint16_t rpm;
 };
 
 Rpm::Rpm(gpio_num_t pin, pcnt_unit_t unit, pcnt_channel_t channel)
     : _pin(pin),
       _unit(unit),
       _channel(channel),
-      _value(0),
-      _values(new MovingWindow<Snapshot>(SAMPLES))
+      _sensor(new Rpm::Sensor{})
 {
 }
 
 Rpm::~Rpm()
 {
-    delete _values;
+    delete _sensor;
+}
+
+uint16_t Rpm::value() const
+{
+    return _sensor->rpm;
 }
 
 esp_err_t Rpm::begin()
@@ -118,22 +134,6 @@ esp_err_t Rpm::begin()
     return ESP_OK;
 }
 
-void Rpm::measureTask(void *p)
-{
-    auto array = static_cast<Rpm **>(p);
-
-    while (true)
-    {
-        for (Rpm **ppRpm = array; *ppRpm; ppRpm++)
-        {
-            Rpm *pRpm = *ppRpm;
-            pRpm->_value = pRpm->measure();
-        }
-
-        vTaskDelay(Rpm::INTERVAL / portTICK_PERIOD_MS);
-    }
-}
-
 uint16_t Rpm::measure()
 {
     // Calculate
@@ -142,16 +142,39 @@ uint16_t Rpm::measure()
     pcnt_get_counter_value(_unit, &count);
 
     // Append to buffer
-    _values->push({
+    _sensor->counts.push({
         .time = now,
         .count = count,
     });
 
     // Calculate
-    auto oldest = _values->first();
+    auto oldest = _sensor->counts.first();
     auto revs = ((int32_t)COUNTER_MAX + count - oldest.count) % COUNTER_MAX;
     auto elapsed = now - oldest.time;
 
     // 15000000 = 60000000 / pulses per rev / rising and falling edge = 60000000 / 2 / 2
     return 15000000 * revs / elapsed;
+}
+
+void Rpm::measureTask(void *p)
+{
+    auto array = static_cast<Rpm **>(p);
+
+    while (true)
+    {
+        for (Rpm **ppRpm = array; *ppRpm; ppRpm++)
+        {
+            auto pRpm = *ppRpm;
+            auto pSensor = pRpm->_sensor;
+
+            auto value = pRpm->measure();
+
+            pSensor->valueTotal -= pSensor->values.first();
+            pSensor->valueTotal += value;
+            pSensor->values.push(value);
+            pSensor->rpm = pSensor->valueTotal / pSensor->values.size();
+        }
+
+        vTaskDelay(Rpm::INTERVAL / portTICK_PERIOD_MS);
+    }
 }

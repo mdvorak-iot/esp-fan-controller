@@ -37,13 +37,8 @@ public:
         channelConfig.channel = _channel;
         channelConfig.gpio_num = _pin;
         channelConfig.speed_mode = LEDC_HIGH_SPEED_MODE;
-        channelConfig.duty = 1; // Note: sometimes during init driver is in inconsistent state - triggering it resets it properly to OFF state
+        channelConfig.duty = 0;
         r = ledc_channel_config(&channelConfig);
-        if (r != ESP_OK)
-        {
-            return r;
-        }
-        r = ledc_set_duty_and_update(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, 0, 0);
         return r;
     }
 
@@ -60,10 +55,9 @@ public:
     esp_err_t duty(uint32_t duty)
     {
         // Avoid overflow
-        // NOTE never allow 100% duty cycle, it behaves wierd sometimes and can destroy FET driver
-        if (duty > _maxDuty - 1)
+        if (duty > _maxDuty)
         {
-            duty = _maxDuty - 1;
+            duty = _maxDuty;
         }
         // NOOP
         if (duty == _duty)

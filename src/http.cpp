@@ -20,7 +20,7 @@ esp_err_t getDataHandler(httpd_req_t *req)
 {
     std::ostringstream json;
 
-    json << "{\n\"temp\":" << std::fixed << std::setprecision(1) << Values::temperature.load() << ',';
+    json << "{\n\"temp\":" << std::fixed << std::setprecision(3) << Values::temperature.load() << ',';
     json << "\"tempRead\":" << Values::temperatureReadout.load() << ',';
     json << "\"rpm\":" << Values::rpm.load() << ',';
     json << "\"duty\":" << (int)Values::duty.load() << ',';

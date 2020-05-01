@@ -17,10 +17,7 @@ public:
 
     esp_err_t begin();
 
-    uint16_t value() const
-    {
-        return _value;
-    }
+    uint16_t value() const;
 
     template <typename... Args>
     static TaskHandle_t start(Rpm &inst, Args... args)
@@ -28,23 +25,21 @@ public:
         auto array = new Rpm *[MAX_COUNTERS + 1] { 0 }; // max counters + terminating null
         collectInstances(array, 0, inst, args...);
 
+        // NOTE array is never deleted, since task is infinite
         TaskHandle_t handle = nullptr;
         xTaskCreate(measureTask, "rpm", 4096, array, tskIDLE_PRIORITY + 1, &handle);
         return handle;
     }
 
 private:
-    // Internal classes
-    template <typename T>
-    class MovingWindow;
-    struct Snapshot;
+    // Internal class
+    struct Sensor;
 
     // Variables
     gpio_num_t const _pin;
-    pcnt_unit_t _unit;
-    pcnt_channel_t _channel;
-    volatile int16_t _value;
-    MovingWindow<Snapshot> *_values;
+    pcnt_unit_t const _unit;
+    pcnt_channel_t const _channel;
+    Sensor *const _sensor;
 
     // Internal methods
     uint16_t measure();
