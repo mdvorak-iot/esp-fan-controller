@@ -1,7 +1,62 @@
+#include <driver/pcnt.h>
+#include <esp32-hal-log.h>
+#include <freertos/task.h>
+#include <vector>
 #include "Rpm.h"
-#include "driver/pcnt.h"
 
 const int16_t COUNTER_MAX = 32767;
+
+// This class is not thread-safe
+template <typename T>
+class Rpm::MovingWindow
+{
+public:
+    MovingWindow(size_t size)
+        : _index(0), _size(size), _values(new T[size])
+    {
+    }
+
+    ~MovingWindow()
+    {
+        delete[] _values;
+    }
+
+    void push(const T &value)
+    {
+        _index = (_index + 1) % _size;
+        _values[_index] = value;
+    }
+
+    T first() const
+    {
+        return _values[(_index + 1) % _size];
+    }
+
+private:
+    size_t _index;
+    size_t _size;
+    T *_values;
+};
+
+struct Rpm::Snapshot
+{
+    unsigned long time;
+    int16_t count;
+};
+
+Rpm::Rpm(gpio_num_t pin, pcnt_unit_t unit, pcnt_channel_t channel)
+    : _pin(pin),
+      _unit(unit),
+      _channel(channel),
+      _value(0),
+      _values(new MovingWindow<Snapshot>(SAMPLES))
+{
+}
+
+Rpm::~Rpm()
+{
+    delete _values;
+}
 
 esp_err_t Rpm::begin()
 {
@@ -59,26 +114,41 @@ esp_err_t Rpm::begin()
         return err;
     }
 
+    // OK
     return ESP_OK;
+}
+
+void Rpm::measureTask(void *p)
+{
+    auto array = static_cast<Rpm **>(p);
+
+    while (true)
+    {
+        for (Rpm **ppRpm = array; *ppRpm; ppRpm++)
+        {
+            Rpm *pRpm = *ppRpm;
+            pRpm->_value = pRpm->measure();
+        }
+
+        vTaskDelay(Rpm::INTERVAL / portTICK_PERIOD_MS);
+    }
 }
 
 uint16_t Rpm::measure()
 {
     // Calculate
-    auto now = micros();
+    auto now = (unsigned long)esp_timer_get_time();
     int16_t count = 0;
     pcnt_get_counter_value(_unit, &count);
 
     // Append to buffer
-    _index = (_index + 1) % _samples;
-    _values[_index] = {
+    _values->push({
         .time = now,
         .count = count,
-    };
+    });
 
     // Calculate
-    auto oldest = _values[(_index + 1) % _samples];
-
+    auto oldest = _values->first();
     auto revs = ((int32_t)COUNTER_MAX + count - oldest.count) % COUNTER_MAX;
     auto elapsed = now - oldest.time;
 

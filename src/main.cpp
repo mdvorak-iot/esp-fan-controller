@@ -15,7 +15,7 @@
 
 // Devices
 static Pwm pwm(PWM_PIN, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION);
-static Rpm rpm(RPM_PIN, RPM_SAMPLES);
+static Rpm rpm(RPM_PIN);
 static OneWire wire(GPIO_NUM_15);
 static DallasTemperature temp(&wire);
 static std::vector<uint64_t> sensors;
@@ -70,6 +70,10 @@ void setup()
   {
     log_e("rpm.begin failed: %d %s", err, esp_err_to_name(err));
   }
+
+  Rpm::start(rpm, rpm);
+
+  // TODO
   xTaskCreate(loopRpm, "loopRpm", 10000, nullptr, tskIDLE_PRIORITY, nullptr);
 
   // WiFi
@@ -86,7 +90,7 @@ void setup()
   // Done
   pinMode(0, OUTPUT);
   log_i("started %s", VERSION);
-  delay(500);
+  delay(1000);
 }
 
 void loop()
@@ -101,7 +105,7 @@ void loop()
     for (uint64_t addr : sensors)
     {
       float c = temp.getTempC((uint8_t *)&addr);
-      if (c > highestTemp)
+      if (c > highestTemp && c != 85.0)
       {
         highestTemp = c;
       }
@@ -109,16 +113,17 @@ void loop()
   }
 
   // Calculate fan speed
-  uint32_t dutyPercent = 50; //HI_THERSHOLD_DUTY;
+  uint32_t dutyPercent = Values::duty.load();
   if (highestTemp != DEVICE_DISCONNECTED_C && highestTemp != 85.0)
   {
     auto value = constrain(highestTemp, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C);
-    dutyPercent = map(value, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C, LO_THERSHOLD_DUTY, HI_THERSHOLD_DUTY);
+    // NOTE *10 to have precision while using long arithmetics
+    dutyPercent = map(value * 10, LO_THERSHOLD_TEMP_C * 10, HI_THERSHOLD_TEMP_C * 10, LO_THERSHOLD_DUTY, HI_THERSHOLD_DUTY);
 
+    Values::duty.store(dutyPercent);
     Values::temperature.store(highestTemp);
     Values::temperatureReadout.store(millis());
   }
-  Values::duty.store(dutyPercent);
 
   // Control PWM
   setDuty(dutyPercent);
@@ -140,7 +145,9 @@ void loopRpm(void *)
 {
   for (;;)
   {
-    auto r = rpm.measure();
+
+    // TODO
+    auto r = rpm.value();
     rpmAvg.add(r);
     Values::rpm.store(rpmAvg.value());
     delay(RPM_INTERVAL);
