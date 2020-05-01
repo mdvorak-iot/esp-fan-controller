@@ -3,7 +3,7 @@
 #include <driver/ledc.h>
 
 const auto LO_THERSHOLD_TEMP_C = 27;
-const auto HI_THERSHOLD_TEMP_C = 30;
+const auto HI_THERSHOLD_TEMP_C = 34;
 const auto LO_THERSHOLD_DUTY = 30;
 const auto HI_THERSHOLD_DUTY = 99;
 
