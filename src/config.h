@@ -3,11 +3,11 @@
 #include <driver/ledc.h>
 
 const auto LO_THERSHOLD_TEMP_C = 28;
-const auto HI_THERSHOLD_TEMP_C = 38;
+const auto HI_THERSHOLD_TEMP_C = 35;
 const auto LO_THERSHOLD_DUTY = 30u;
 const auto HI_THERSHOLD_DUTY = 97u;
 
-const auto PWM_PIN = GPIO_NUM_33;
+const auto PWM_PIN = GPIO_NUM_2;
 const auto PWM_FREQ = 25000u;
 const auto PWM_RESOLUTION = LEDC_TIMER_9_BIT;
 
