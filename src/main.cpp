@@ -13,7 +13,7 @@
 #include "Values.h"
 
 // Devices
-static Pwm pwm(PWM_PIN, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION);
+static Pwm pwm(PWM_PIN, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION, PWM_INVERTED);
 static Rpm rpm(RPM_PIN);
 static OneWire wire(GPIO_NUM_15);
 static DallasTemperature temp(&wire);
@@ -21,12 +21,6 @@ static std::vector<uint64_t> sensors;
 
 // Setup
 void setupHttp();
-
-esp_err_t setDuty(uint8_t dutyPercent)
-{
-  // NOTE inverted output via transistor
-  return pwm.duty(pwm.maxDuty() - dutyPercent * pwm.maxDuty() / 100U);
-}
 
 void setup()
 {
@@ -38,7 +32,7 @@ void setup()
 
   // Power PWM
   ESP_ERROR_CHECK(pwm.begin());
-  ESP_ERROR_CHECK(setDuty(HI_THERSHOLD_DUTY));
+  ESP_ERROR_CHECK(pwm.duty((float)HI_THERSHOLD_DUTY * pwm.maxDuty() / 100));
 
   // Init Sensors
   temp.begin();
@@ -108,12 +102,12 @@ void loop()
   }
 
   // Calculate fan speed
-  uint32_t dutyPercent = Values::duty.load();
+  float dutyPercent = Values::duty.load();
   if (highestTemp != DEVICE_DISCONNECTED_C && highestTemp != 85.0)
   {
-    auto value = constrain(highestTemp, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C);
-    // NOTE *100 to have precision while using long arithmetics
-    dutyPercent = map(value * 100, LO_THERSHOLD_TEMP_C * 100, HI_THERSHOLD_TEMP_C * 100, LO_THERSHOLD_DUTY, HI_THERSHOLD_DUTY);
+    float value = constrain(highestTemp, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C);
+    // map temperature range to duty cycle
+    dutyPercent = (value - LO_THERSHOLD_TEMP_C) * (HI_THERSHOLD_DUTY - LO_THERSHOLD_DUTY) / (HI_THERSHOLD_TEMP_C - LO_THERSHOLD_TEMP_C) + LO_THERSHOLD_DUTY;
 
     Values::duty.store(dutyPercent);
     Values::temperature.store(highestTemp);
@@ -121,7 +115,7 @@ void loop()
   }
 
   // Control PWM
-  setDuty(dutyPercent);
+  pwm.duty(dutyPercent * pwm.maxDuty() / 100);
   Values::rpm.store(rpm.value());
 
   // Status LED
