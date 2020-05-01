@@ -10,26 +10,17 @@
 #include "config.h"
 #include "Pwm.h"
 #include "Rpm.h"
-#include "Average.h"
 #include "Values.h"
 
 // Devices
-static Pwm pwm(PWM_PIN, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION);
-static Rpm rpm(RPM_PIN, RPM_SAMPLES);
+static Pwm pwm(PWM_PIN, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION, PWM_INVERTED);
+static Rpm rpm(RPM_PIN);
 static OneWire wire(GPIO_NUM_15);
 static DallasTemperature temp(&wire);
 static std::vector<uint64_t> sensors;
-static Average<uint16_t, RPM_AVERAGE> rpmAvg;
 
 // Setup
-void loopRpm(void *);
 void setupHttp();
-
-esp_err_t setDuty(uint8_t dutyPercent)
-{
-  // NOTE inverted output via transistor
-  return pwm.duty(pwm.maxDuty() - dutyPercent * pwm.maxDuty() / 100U);
-}
 
 void setup()
 {
@@ -41,10 +32,11 @@ void setup()
 
   // Power PWM
   ESP_ERROR_CHECK(pwm.begin());
-  ESP_ERROR_CHECK(setDuty(HI_THERSHOLD_DUTY));
+  ESP_ERROR_CHECK(pwm.duty((float)HI_THERSHOLD_DUTY * pwm.maxDuty() / 100));
 
   // Init Sensors
   temp.begin();
+  temp.setResolution(12);
 
   // Enumerate and store all sensors
   DeviceAddress addr = {};
@@ -70,7 +62,8 @@ void setup()
   {
     log_e("rpm.begin failed: %d %s", err, esp_err_to_name(err));
   }
-  xTaskCreate(loopRpm, "loopRpm", 10000, nullptr, tskIDLE_PRIORITY, nullptr);
+
+  Rpm::start(rpm);
 
   // WiFi
   WiFiSetup(WIFI_SETUP_WPS);
@@ -86,7 +79,7 @@ void setup()
   // Done
   pinMode(0, OUTPUT);
   log_i("started %s", VERSION);
-  delay(500);
+  delay(1000);
 }
 
 void loop()
@@ -101,7 +94,7 @@ void loop()
     for (uint64_t addr : sensors)
     {
       float c = temp.getTempC((uint8_t *)&addr);
-      if (c > highestTemp)
+      if (c > highestTemp && c != 85.0)
       {
         highestTemp = c;
       }
@@ -109,19 +102,21 @@ void loop()
   }
 
   // Calculate fan speed
-  uint32_t dutyPercent = 50; //HI_THERSHOLD_DUTY;
+  float dutyPercent = Values::duty.load();
   if (highestTemp != DEVICE_DISCONNECTED_C && highestTemp != 85.0)
   {
-    auto value = constrain(highestTemp, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C);
-    dutyPercent = map(value, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C, LO_THERSHOLD_DUTY, HI_THERSHOLD_DUTY);
+    float value = constrain(highestTemp, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C);
+    // map temperature range to duty cycle
+    dutyPercent = (value - LO_THERSHOLD_TEMP_C) * (HI_THERSHOLD_DUTY - LO_THERSHOLD_DUTY) / (HI_THERSHOLD_TEMP_C - LO_THERSHOLD_TEMP_C) + LO_THERSHOLD_DUTY;
 
+    Values::duty.store(dutyPercent);
     Values::temperature.store(highestTemp);
     Values::temperatureReadout.store(millis());
   }
-  Values::duty.store(dutyPercent);
 
   // Control PWM
-  setDuty(dutyPercent);
+  pwm.duty(dutyPercent * pwm.maxDuty() / 100);
+  Values::rpm.store(rpm.value());
 
   // Status LED
   static auto status = false;
@@ -134,15 +129,4 @@ void loop()
 
   delay(elapsed >= MAIN_LOOP_INTERVAL ? 1 : MAIN_LOOP_INTERVAL - elapsed);
   lastLoop = millis();
-}
-
-void loopRpm(void *)
-{
-  for (;;)
-  {
-    auto r = rpm.measure();
-    rpmAvg.add(r);
-    Values::rpm.store(rpmAvg.value());
-    delay(RPM_INTERVAL);
-  }
 }

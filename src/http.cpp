@@ -20,10 +20,10 @@ esp_err_t getDataHandler(httpd_req_t *req)
 {
     std::ostringstream json;
 
-    json << "{\n\"temp\":" << std::fixed << std::setprecision(1) << Values::temperature.load() << ',';
+    json << "{\n\"temp\":" << std::fixed << std::setprecision(3) << Values::temperature.load() << ',';
     json << "\"tempRead\":" << Values::temperatureReadout.load() << ',';
     json << "\"rpm\":" << Values::rpm.load() << ',';
-    json << "\"duty\":" << (int)Values::duty.load() << ',';
+    json << "\"duty\":" << std::fixed << std::setprecision(2) << Values::duty.load() << ',';
     json << "\"up\":" << millis();
     json << "\n}";
 
@@ -39,7 +39,7 @@ esp_err_t getMetricsHandler(httpd_req_t *req)
 
     m << "# HELP hw_temp_celsius Temperature in Celsius\n";
     m << "# TYPE hw_temp_celsius gauge\n";
-    m << "hw_temp_celsius{sensor=\"rad_intake\"} " << std::fixed << std::setprecision(1) << Values::temperature.load() << '\n';
+    m << "hw_temp_celsius{sensor=\"rad_intake\"} " << std::fixed << std::setprecision(3) << Values::temperature.load() << '\n';
     m << "# HELP hw_fan_rpm Fan RPM\n";
     m << "# TYPE hw_fan_rpm gauge\n";
     m << "hw_fan_rpm{sensor=\"rad\"} " << Values::rpm.load() << '\n';
@@ -64,7 +64,6 @@ esp_err_t getInfoHandler(httpd_req_t *req)
     httpd_resp_send(req, resp.c_str(), resp.length());
     return ESP_OK;
 }
-
 
 void registerHandler(const char *uri, httpd_method_t method, esp_err_t (*handler)(httpd_req_t *r))
 {
