@@ -18,6 +18,7 @@ static Rpm rpm(RPM_PIN);
 static OneWire wire(GPIO_NUM_15);
 static DallasTemperature temp(&wire);
 static std::vector<uint64_t> sensors;
+static std::uint64_t primarySensor;
 
 // Setup
 void setupHttp();
@@ -46,7 +47,13 @@ void setup()
     {
       uint64_t addr64 = 0;
       memcpy(&addr64, addr, 8);
-      log_i("found temp sensor: 0x%016X", addr64);
+
+      // WARNING esp32 does not support printing of 64-bit integer, and trying to do so corrupts heap!
+      log_i("found temp sensor: 0x%08X%08X", (uint32_t)(addr64 >> 32), (uint32_t)addr64);
+
+      if (sensors.empty())
+        primarySensor = addr64;
+
       sensors.push_back(addr64);
     }
   }
@@ -55,6 +62,13 @@ void setup()
   {
     log_e("no temperature sensors found!");
   }
+  else
+  {
+    log_i("found %d sensors", sensors.size());
+  }
+
+  // Request temperature, so sensors won't have 85C stored as initial value
+  temp.requestTemperatures();
 
   // RPM
   auto err = rpm.begin();
@@ -68,11 +82,6 @@ void setup()
   // WiFi
   WiFiSetup(WIFI_SETUP_WPS);
 
-  // mDNS
-  mdns_init();
-  mdns_hostname_set("rad");
-  mdns_service_add(nullptr, "_http", "_tcp", 80, nullptr, 0);
-
   // HTTP
   setupHttp();
 
@@ -85,32 +94,41 @@ void setup()
 void loop()
 {
   // Read temperatures
-  float highestTemp = DEVICE_DISCONNECTED_C;
+  float primaryTemp = DEVICE_DISCONNECTED_C;
 
   if (!sensors.empty())
   {
     temp.requestTemperatures();
 
+    int i = 0;
     for (uint64_t addr : sensors)
     {
-      float c = temp.getTempC((uint8_t *)&addr);
-      if (c > highestTemp && c != 85.0)
+      float c = temp.getTempC(reinterpret_cast<uint8_t *>(&addr));
+      // WARNING esp32 does not support printing of 64-bit integer, and trying to do so corrupts heap!
+      log_d("temp [%d] 0x%08X%08X: %f", i, (uint32_t)(addr >> 32), (uint32_t)addr, c);
+
+      // Store temperature
+
+      // Use temperature for fan duty
+      if (addr == primarySensor)
       {
-        highestTemp = c;
+        primaryTemp = c;
       }
+
+      i++;
     }
   }
 
   // Calculate fan speed
   float dutyPercent = Values::duty.load();
-  if (highestTemp != DEVICE_DISCONNECTED_C && highestTemp != 85.0)
+  if (primaryTemp != DEVICE_DISCONNECTED_C)
   {
-    float value = constrain(highestTemp, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C);
+    float value = constrain(primaryTemp, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C);
     // map temperature range to duty cycle
     dutyPercent = (value - LO_THERSHOLD_TEMP_C) * (HI_THERSHOLD_DUTY - LO_THERSHOLD_DUTY) / (HI_THERSHOLD_TEMP_C - LO_THERSHOLD_TEMP_C) + LO_THERSHOLD_DUTY;
 
     Values::duty.store(dutyPercent);
-    Values::temperature.store(highestTemp);
+    Values::temperature.store(primaryTemp);
     Values::temperatureReadout.store(millis());
   }
 
