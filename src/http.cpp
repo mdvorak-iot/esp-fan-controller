@@ -2,7 +2,7 @@
 #include <sstream>
 #include <iomanip>
 #include <esp_http_server.h>
-#include "Values.h"
+#include "state.h"
 #include "version.h"
 
 static httpd_handle_t server;
@@ -21,7 +21,8 @@ esp_err_t getDataHandler(httpd_req_t *req)
 
     json << "{\n\"temp\":" << std::fixed << std::setprecision(3) << Values::temperature.load() << ',';
     json << "\"tempRead\":" << Values::temperatureReadout.load() << ',';
-    json << "\"rpm\":" << Values::rpm.load() << ',';
+    //TODO
+    //json << "\"rpm\":" << Values::rpm.load() << ',';
     json << "\"duty\":" << std::fixed << std::setprecision(2) << Values::duty.load() << ',';
     json << "\"up\":" << millis();
     json << "\n}";
@@ -36,15 +37,15 @@ esp_err_t getMetricsHandler(httpd_req_t *req)
 {
     std::ostringstream m;
 
-    // TODO
-    const char *HARDWARE = "Radiator";
+    auto hardware = Values::hardware();
+    auto rpms = Values::rpms();
 
     m << "# HELP esp_celsius Temperature in Celsius\n";
     m << "# TYPE esp_celsius gauge\n";
-    m << "esp_celsius{hardware=\"" << HARDWARE << "\",sensor=\"Water Intake\"} " << std::fixed << std::setprecision(3) << Values::temperature.load() << '\n';
+    m << "esp_celsius{hardware=\"" << hardware << "\",sensor=\"Water Intake\"} " << std::fixed << std::setprecision(3) << Values::temperature.load() << '\n';
     m << "# HELP esp_rpm Fan RPM\n";
     m << "# TYPE esp_rpm gauge\n";
-    m << "esp_rpm{hardware=\"" << HARDWARE << "\",sensor=\"Fan 1\"} " << Values::rpm.load() << '\n';
+    m << "esp_rpm{hardware=\"" << hardware << "\",sensor=\"Fan 1\"} " << Values::rpm.load() << '\n';
 
     auto resp = m.str();
     httpd_resp_set_type(req, "text/plain");

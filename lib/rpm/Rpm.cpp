@@ -158,7 +158,7 @@ uint16_t Rpm::measure()
 
 void Rpm::measureTask(void *p)
 {
-    auto array = static_cast<Rpm **>(p);
+    std::vector<Rpm> array = *static_cast<std::vector<std::unique_ptr<Rpm>> *>(p);
 
     while (true)
     {
