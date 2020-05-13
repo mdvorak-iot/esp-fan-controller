@@ -31,7 +31,7 @@ const auto MAIN_LOOP_INTERVAL = 1000;
 static app_config config;
 static float dutyPercent;
 static std::unique_ptr<Pwm> pwm;
-static std::vector<std::unique_ptr<Rpm>> rpms;
+static rpmcounter::Rpm rpm;
 static std::unique_ptr<OneWire> wire;
 static std::unique_ptr<DallasTemperature> temp;
 static std::vector<uint64_t> sensors;
@@ -96,25 +96,11 @@ void setup()
   {
     if (cfg.rpm_pins[i] != GPIO_NUM_DISABLED)
     {
-      auto unit = static_cast<pcnt_unit_t>(i / 2);
-      auto channel = static_cast<pcnt_channel_t>(i % 2);
-
-      std::unique_ptr<Rpm> rpm(new Rpm(cfg.rpm_pins[i], unit, channel));
-      err = rpm->begin();
-      if (err == ESP_OK)
-      {
-        rpms.push_back(std::move(rpm));
-        continue; // next iteration
-      }
-
-      log_e("failed to begin fan %d: %d %s", i, err, esp_err_to_name(err));
-      // Fall thru on error
+      ESP_ERROR_CHECK_WITHOUT_ABORT(rpm.add(cfg.rpm_pins[i]));
     }
-
-    rpms.push_back(nullptr);
   }
 
-  Rpm::start(rpm); // TODO multiple
+  ESP_ERROR_CHECK_WITHOUT_ABORT(rpm.begin());
 
   // WiFi
   WiFiSetup(WIFI_SETUP_WPS);
@@ -181,11 +167,8 @@ void loop()
   digitalWrite(0, status ? HIGH : LOW);
 
   // Wait
-  static auto lastLoop = millis();
-  auto elapsed = millis() - lastLoop;
-
-  delay(elapsed >= MAIN_LOOP_INTERVAL ? 1 : MAIN_LOOP_INTERVAL - elapsed);
-  lastLoop = millis();
+  static auto previousWakeTime = xTaskGetTickCount();
+  vTaskDelayUntil(&previousWakeTime, MAIN_LOOP_INTERVAL);
 }
 
 void setupSensors()

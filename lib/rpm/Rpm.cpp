@@ -2,45 +2,17 @@
 #include <esp32-hal-log.h>
 #include <freertos/task.h>
 #include <vector>
+#include <esp_task_wdt.h>
+#include "CircularBuffer.h"
 #include "Rpm.h"
 
-const int16_t COUNTER_MAX = 32767;
-
-// This class is not thread-safe
-template <typename T, size_t C>
-class MovingWindow
+namespace rpmcounter
 {
-public:
-    MovingWindow()
-        : _index(0), _values{0}
-    {
-    }
 
-    inline size_t size() const
-    {
-        return C;
-    }
-
-    void push(const T &value)
-    {
-        _index = (_index + 1) % C;
-        _values[_index] = value;
-    }
-
-    T first() const
-    {
-        return _values[(_index + 1) % C];
-    }
-
-    const T *values() const
-    {
-        return _values;
-    }
-
-private:
-    size_t _index;
-    T _values[C];
-};
+static const size_t SAMPLES = 10;
+static const size_t AVERAGE = 10;
+static const unsigned long INTERVAL = 100;
+static const int16_t COUNTER_MAX_VALUE = 32767;
 
 struct Snapshot
 {
@@ -50,42 +22,30 @@ struct Snapshot
 
 struct Rpm::Sensor
 {
-    MovingWindow<Snapshot, Rpm::SAMPLES> counts;
-    MovingWindow<uint16_t, Rpm::AVERAGE> values;
+    gpio_num_t pin;
+    pcnt_unit_t unit;
     uint32_t valueTotal;
-    volatile uint16_t rpm;
+    uint16_t rpm;
+    CircularBuffer<Snapshot, SAMPLES> counts;
+    CircularBuffer<uint16_t, AVERAGE> values;
 };
 
-Rpm::Rpm(gpio_num_t pin, pcnt_unit_t unit, pcnt_channel_t channel)
-    : _pin(pin),
-      _unit(unit),
-      _channel(channel),
-      _sensor(new Rpm::Sensor{})
+esp_err_t Rpm::add(gpio_num_t pin)
 {
-}
+    // Next available unit
+    auto unit = static_cast<pcnt_unit_t>(sensors_.size());
 
-Rpm::~Rpm()
-{
-    delete _sensor;
-}
-
-uint16_t Rpm::value() const
-{
-    return _sensor->rpm;
-}
-
-esp_err_t Rpm::begin()
-{
+    // Config
     pcnt_config_t pcnt_config = {
-        .pulse_gpio_num = _pin,
+        .pulse_gpio_num = pin,
         .ctrl_gpio_num = PCNT_PIN_NOT_USED,
         .lctrl_mode = PCNT_MODE_KEEP,
         .hctrl_mode = PCNT_MODE_KEEP,
         .pos_mode = PCNT_COUNT_INC,
         .neg_mode = PCNT_COUNT_INC,
-        .counter_h_lim = COUNTER_MAX,
+        .counter_h_lim = COUNTER_MAX_VALUE,
         .counter_l_lim = 0,
-        .unit = PCNT_UNIT_0,
+        .unit = unit,
         .channel = PCNT_CHANNEL_0,
     };
 
@@ -100,7 +60,7 @@ esp_err_t Rpm::begin()
 
     // Filtering
     // NOTE since we are measuring very low frequencies, we can filter out all short pulses (noise)
-    // NOTE counter is 10-bit in APB_CLK cycles (80Mhz), so 1000 = 80kHz, 1023 is max
+    // NOTE counter is 10-bit in APB_CLK cycles (80Mhz), so 1000 = 80kHz, 1023 is max allowed value
     err = pcnt_set_filter_value(pcnt_config.unit, 1023);
     if (err != ESP_OK)
     {
@@ -130,51 +90,108 @@ esp_err_t Rpm::begin()
         return err;
     }
 
+    // Add to collection
+    portENTER_CRITICAL(&lock_);
+    sensors_.push_back(new Sensor{
+        .pin = pin,
+        .unit = pcnt_config.unit,
+        .valueTotal = 0,
+        .rpm = 0,
+    });
+    portEXIT_CRITICAL(&lock_);
+
     // OK
     return ESP_OK;
 }
 
-uint16_t Rpm::measure()
+void Rpm::values(std::vector<uint16_t> &out)
 {
-    // Calculate
-    auto now = (unsigned long)esp_timer_get_time();
-    int16_t count = 0;
-    pcnt_get_counter_value(_unit, &count);
+    portENTER_CRITICAL(&lock_);
 
-    // Append to buffer
-    _sensor->counts.push({
-        .time = now,
-        .count = count,
-    });
+    // Match the size
+    out.resize(sensors_.size());
 
-    // Calculate
-    auto oldest = _sensor->counts.first();
-    auto revs = ((int32_t)COUNTER_MAX + count - oldest.count) % COUNTER_MAX;
-    auto elapsed = now - oldest.time;
+    // Copy values
+    for (size_t i = 0, s = sensors_.size(); i < s; i++)
+    {
+        out[i] = sensors_[i]->rpm;
+    }
 
-    // 15000000 = 60000000 / pulses per rev / rising and falling edge = 60000000 / 2 / 2
-    return 15000000 * revs / elapsed;
+    portEXIT_CRITICAL(&lock_);
+}
+
+uint16_t Rpm::value()
+{
+    portENTER_CRITICAL(&lock_);
+    auto value = sensors_[0]->rpm;
+    portEXIT_CRITICAL(&lock_);
+
+    return value;
+}
+
+esp_err_t Rpm::begin()
+{
+    xTaskCreate(measureTask, "rpm", 2048, this, tskIDLE_PRIORITY + 1, nullptr);
+    return ESP_OK;
+}
+
+void Rpm::measureLoop()
+{
+    // Enable Watchdog
+    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_task_wdt_add(nullptr));
+
+    TickType_t previousWakeTime = xTaskGetTickCount();
+
+    while (true)
+    {
+        // Watchdog
+        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_task_wdt_reset());
+
+        // Lock
+        portENTER_CRITICAL(&lock_);
+
+        auto now = (unsigned long)esp_timer_get_time();
+
+        // For each configured sensor
+        for (auto sensor : sensors_)
+        {
+            // Get count (ignore error, just use zero)
+            int16_t count = 0;
+            pcnt_get_counter_value(sensor->unit, &count);
+
+            // Add new readout
+            sensor->counts.push({
+                .time = now,
+                .count = count,
+            });
+
+            // Calculate
+            auto oldest = sensor->counts.first();
+            auto revs = ((int32_t)COUNTER_MAX_VALUE + count - oldest.count) % COUNTER_MAX_VALUE;
+            auto elapsed = now - oldest.time;
+
+            // 15000000 = 60000000 / pulses per rev / rising and falling edge = 60000000 / 2 / 2
+            auto value = 15000000 * revs / elapsed;
+
+            // Average
+            sensor->valueTotal -= sensor->values.first();
+            sensor->valueTotal += value;
+            sensor->values.push(value);
+
+            // Expose final value
+            sensor->rpm = sensor->valueTotal / sensor->values.size();
+        }
+
+        portEXIT_CRITICAL(&lock_);
+
+        // Wait
+        vTaskDelayUntil(&previousWakeTime, INTERVAL / portTICK_PERIOD_MS);
+    }
 }
 
 void Rpm::measureTask(void *p)
 {
-    std::vector<Rpm> array = *static_cast<std::vector<std::unique_ptr<Rpm>> *>(p);
-
-    while (true)
-    {
-        for (Rpm **ppRpm = array; *ppRpm; ppRpm++)
-        {
-            auto pRpm = *ppRpm;
-            auto pSensor = pRpm->_sensor;
-
-            auto value = pRpm->measure();
-
-            pSensor->valueTotal -= pSensor->values.first();
-            pSensor->valueTotal += value;
-            pSensor->values.push(value);
-            pSensor->rpm = pSensor->valueTotal / pSensor->values.size();
-        }
-
-        vTaskDelay(Rpm::INTERVAL / portTICK_PERIOD_MS);
-    }
+    static_cast<Rpm *>(p)->measureLoop();
 }
+
+}; // namespace rpmcounter
