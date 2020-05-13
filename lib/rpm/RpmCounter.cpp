@@ -3,24 +3,26 @@
 #include <freertos/task.h>
 #include <vector>
 #include <esp_task_wdt.h>
-#include "CircularBuffer.h"
-#include "Rpm.h"
+#include "RpmCounterCircularBuffer.h"
+#include "RpmCounter.h"
 
 namespace rpmcounter
 {
 
+// Constants
 static const size_t SAMPLES = 10;
 static const size_t AVERAGE = 10;
 static const unsigned long INTERVAL = 100;
 static const int16_t COUNTER_MAX_VALUE = 32767;
 
+// Helper structures
 struct Snapshot
 {
     unsigned long time;
     int16_t count;
 };
 
-struct Rpm::Sensor
+struct Sensor
 {
     gpio_num_t pin;
     pcnt_unit_t unit;
@@ -30,7 +32,12 @@ struct Rpm::Sensor
     CircularBuffer<uint16_t, AVERAGE> values;
 };
 
-esp_err_t Rpm::add(gpio_num_t pin)
+// Variables
+static portMUX_TYPE lock_ = portMUX_INITIALIZER_UNLOCKED;
+static std::vector<Sensor *> sensors_;
+
+// Functions
+esp_err_t rpm_counter_add(gpio_num_t pin)
 {
     // Next available unit
     auto unit = static_cast<pcnt_unit_t>(sensors_.size());
@@ -104,7 +111,7 @@ esp_err_t Rpm::add(gpio_num_t pin)
     return ESP_OK;
 }
 
-void Rpm::values(std::vector<uint16_t> &out)
+void rpm_counter_values(std::vector<uint16_t> &out)
 {
     portENTER_CRITICAL(&lock_);
 
@@ -120,7 +127,7 @@ void Rpm::values(std::vector<uint16_t> &out)
     portEXIT_CRITICAL(&lock_);
 }
 
-uint16_t Rpm::value()
+uint16_t rpm_counter_value()
 {
     portENTER_CRITICAL(&lock_);
     auto value = sensors_[0]->rpm;
@@ -129,13 +136,7 @@ uint16_t Rpm::value()
     return value;
 }
 
-esp_err_t Rpm::begin()
-{
-    xTaskCreate(measureTask, "rpm", 2048, this, tskIDLE_PRIORITY + 1, nullptr);
-    return ESP_OK;
-}
-
-void Rpm::measureLoop()
+void measureLoop(void *)
 {
     // Enable Watchdog
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_task_wdt_add(nullptr));
@@ -189,9 +190,10 @@ void Rpm::measureLoop()
     }
 }
 
-void Rpm::measureTask(void *p)
+esp_err_t rpm_counter_init()
 {
-    static_cast<Rpm *>(p)->measureLoop();
+    xTaskCreate(measureLoop, "rpm", 2048, nullptr, tskIDLE_PRIORITY + 1, nullptr);
+    return ESP_OK;
 }
 
 }; // namespace rpmcounter

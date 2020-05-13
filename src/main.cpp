@@ -10,7 +10,7 @@
 #include "version.h"
 #include "config.h"
 #include "Pwm.h"
-#include "Rpm.h"
+#include "RpmCounter.h"
 #include "state.h"
 
 // TODO
@@ -31,7 +31,6 @@ const auto MAIN_LOOP_INTERVAL = 1000;
 static app_config config;
 static float dutyPercent;
 static std::unique_ptr<Pwm> pwm;
-static rpmcounter::Rpm rpm;
 static std::unique_ptr<OneWire> wire;
 static std::unique_ptr<DallasTemperature> temp;
 static std::vector<uint64_t> sensors;
@@ -96,11 +95,11 @@ void setup()
   {
     if (cfg.rpm_pins[i] != GPIO_NUM_DISABLED)
     {
-      ESP_ERROR_CHECK_WITHOUT_ABORT(rpm.add(cfg.rpm_pins[i]));
+      ESP_ERROR_CHECK_WITHOUT_ABORT(rpmcounter::rpm_counter_add(cfg.rpm_pins[i]));
     }
   }
 
-  ESP_ERROR_CHECK_WITHOUT_ABORT(rpm.begin());
+  ESP_ERROR_CHECK_WITHOUT_ABORT(rpmcounter::rpm_counter_init());
 
   // WiFi
   WiFiSetup(WIFI_SETUP_WPS);

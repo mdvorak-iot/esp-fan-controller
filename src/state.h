@@ -13,6 +13,5 @@ struct state
 {
     std::string hardware();
     float duty();
-    std::vector<uint16_t> rpms();
     std::vector<sensor_state> sensors();
 };

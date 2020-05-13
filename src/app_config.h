@@ -5,7 +5,7 @@
 #include <memory>
 
 // Max supported RPM sensors for fans
-const size_t MAX_FANS = 14;
+const size_t MAX_FANS = 7; // Must correspond to rpmcounter::RPM_MAX_COUNTERS
 // Max supported temperature sensors
 const size_t MAX_SENSORS = 10;
 // Maximum sensor name length, including terminating char
@@ -33,6 +33,7 @@ struct __packed config_data
     uint8_t high_threshold_celsius;
     uint8_t cpu_threshold_celsius;
     uint16_t cpu_poll_interval_seconds;
+    char hardware_name[MAX_NAME_LENGHT];
 };
 
 const uint8_t CONFIG_DATA_MAGIC_BYTE = 0x21;
