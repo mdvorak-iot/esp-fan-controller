@@ -7,11 +7,14 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <EspWifiSetup.h>
-#include "version.h"
-#include "config.h"
-#include "Pwm.h"
+#include "app_config.h"
 #include "RpmCounter.h"
+#include "version.h"
+#include "Pwm.h"
 #include "state.h"
+
+using namespace appconfig;
+using namespace rpmcounter;
 
 // TODO
 const auto LO_THERSHOLD_TEMP_C = 30;
@@ -38,7 +41,7 @@ static std::uint64_t primarySensor;
 
 // Setup
 void setupSensors();
-void setupHttp();
+void setupHttp(const std::string &hardware, const std::vector<std::string> &sensorNames);
 
 void setup()
 {
@@ -60,52 +63,56 @@ void setup()
   ESP_ERROR_CHECK(err);
 
   // Init config
-  ESP_ERROR_CHECK(config.begin());
-  auto cfg = config.data();
+  ESP_ERROR_CHECK(app_config_init(config));
+
+  // TODO
+  config.data.control_pin = PWM_PIN;
+  config.data.sensors_pin = GPIO_NUM_15;
 
   // Power PWM
   // NOTE do this ASAP
-  // TODO
-  //if (cfg.control_pin != GPIO_NUM_DISABLED) {
-  //pwm = std::unique_ptr<Pwm>(new Pwm(cfg.control_pin, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION, PWM_INVERTED));
-  pwm = std::unique_ptr<Pwm>(new Pwm(PWM_PIN, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION, PWM_INVERTED));
-  ESP_ERROR_CHECK(pwm->begin());
-  ESP_ERROR_CHECK(pwm->duty((float)HI_THERSHOLD_DUTY * pwm->maxDuty() / 100));
-  // }
+  if (config.data.control_pin != APP_CONFIG_PIN_DISABLED)
+  {
+    pwm = std::unique_ptr<Pwm>(new Pwm(config.data.control_pin, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION, PWM_INVERTED));
+    ESP_ERROR_CHECK(pwm->begin());
+    ESP_ERROR_CHECK(pwm->duty((float)HI_THERSHOLD_DUTY * pwm->maxDuty() / 100));
+  }
 
   // Init Sensors
-  // TODO
-  //if (cfg.sensors_pin != GPIO_NUM_DISABLED) {
-  // wire = std::unique_ptr<OneWire>(new OneWire(cfg.sensors_pin));
-  wire = std::unique_ptr<OneWire>(new OneWire(GPIO_NUM_15));
-  temp = std::unique_ptr<DallasTemperature>(new DallasTemperature(wire.get()));
+  if (config.data.sensors_pin != APP_CONFIG_PIN_DISABLED)
+  {
+    wire = std::unique_ptr<OneWire>(new OneWire(config.data.sensors_pin));
+    temp = std::unique_ptr<DallasTemperature>(new DallasTemperature(wire.get()));
 
-  temp->begin();
-  temp->setResolution(12);
+    temp->begin();
+    temp->setResolution(12);
 
-  // Enumerate and store all sensors
-  setupSensors();
+    // Enumerate and store all sensors
+    setupSensors();
 
-  // Request temperature, so sensors won't have 85C stored as initial value
-  temp->requestTemperatures();
-  //TODO }
+    // Request temperature, so sensors won't have 85C stored as initial value
+    temp->requestTemperatures();
+  }
 
   // RPM
-  for (size_t i = 0; i < MAX_FANS; i++)
+  for (size_t i = 0; i < APP_CONFIG_MAX_RPM; i++)
   {
-    if (cfg.rpm_pins[i] != GPIO_NUM_DISABLED)
+    if (config.data.rpm_pins[i] != APP_CONFIG_PIN_DISABLED)
     {
-      ESP_ERROR_CHECK_WITHOUT_ABORT(rpmcounter::rpm_counter_add(cfg.rpm_pins[i]));
+      ESP_ERROR_CHECK_WITHOUT_ABORT(rpm_counter_add(config.data.rpm_pins[i]));
     }
   }
 
-  ESP_ERROR_CHECK_WITHOUT_ABORT(rpmcounter::rpm_counter_init());
+  ESP_ERROR_CHECK_WITHOUT_ABORT(rpm_counter_init());
 
   // WiFi
   WiFiSetup(WIFI_SETUP_WPS);
 
   // HTTP
-  setupHttp();
+  std::vector<std::string> sensorNames;
+  // TODO pass along sensor names
+
+  setupHttp(config.data.hardware_name, sensorNames);
 
   // Done
   pinMode(0, OUTPUT);

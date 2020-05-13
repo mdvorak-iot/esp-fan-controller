@@ -41,4 +41,4 @@ private:
     T values_[C];
 };
 
-}; // namespace rpm
+}; // namespace rpmcounter
