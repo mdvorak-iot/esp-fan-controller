@@ -3,12 +3,14 @@
 #include <iomanip>
 #include <map>
 #include <esp_http_server.h>
+#include <ArduinoJson.h>
 #include "app_config.h"
 #include "state.h"
 #include "version.h"
-#include "RpmCounter.h"
+#include "rpm_counter.h"
 
 static httpd_handle_t server;
+// NOTe these static vars expect server to be single-threaded
 static std::vector<uint16_t> rpms;
 static std::string hardware;
 static std::vector<std::string> sensorNames;
@@ -23,7 +25,7 @@ esp_err_t getRootHandler(httpd_req_t *req)
 
 esp_err_t getDataHandler(httpd_req_t *req)
 {
-    std::ostringstream json;
+    StaticJsonDocument<JSON_OBJECT_SIZE(5) + 26> json;
 
     // TODO
     // json << "{\n\"temp\":" << std::fixed << std::setprecision(3) << Values::temperature.load() << ',';
@@ -31,6 +33,8 @@ esp_err_t getDataHandler(httpd_req_t *req)
     // json << "\"duty\":" << std::fixed << std::setprecision(2) << Values::duty.load() << ',';
     // json << "\"up\":" << millis();
     // json << "\n}";
+
+ 
 
     auto resp = json.str();
     httpd_resp_set_type(req, "application/json");

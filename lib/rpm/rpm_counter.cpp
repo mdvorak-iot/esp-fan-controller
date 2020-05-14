@@ -3,8 +3,8 @@
 #include <freertos/task.h>
 #include <vector>
 #include <esp_task_wdt.h>
-#include "RpmCounterCircularBuffer.h"
-#include "RpmCounter.h"
+#include "rpm_counter.h"
+#include "rpm_counter_circular_buffer.h"
 
 namespace rpmcounter
 {
@@ -28,8 +28,8 @@ struct Sensor
     pcnt_unit_t unit;
     uint32_t valueTotal;
     uint16_t rpm;
-    CircularBuffer<Snapshot, SAMPLES> counts;
-    CircularBuffer<uint16_t, AVERAGE> values;
+    rpm_counter_circular_buffer<Snapshot, SAMPLES> counts;
+    rpm_counter_circular_buffer<uint16_t, AVERAGE> values;
 };
 
 // Variables

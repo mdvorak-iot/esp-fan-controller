@@ -8,7 +8,7 @@
 #include <DallasTemperature.h>
 #include <EspWifiSetup.h>
 #include "app_config.h"
-#include "RpmCounter.h"
+#include "rpm_counter.h"
 #include "version.h"
 #include "Pwm.h"
 #include "state.h"
@@ -42,6 +42,7 @@ static std::uint64_t primarySensor;
 // Setup
 void setupSensors();
 void setupHttp(const std::string &hardware, const std::vector<std::string> &sensorNames);
+std::vector<std::string> getSensorNames();
 
 void setup()
 {
@@ -109,9 +110,7 @@ void setup()
   WiFiSetup(WIFI_SETUP_WPS);
 
   // HTTP
-  std::vector<std::string> sensorNames;
-  // TODO pass along sensor names
-
+  std::vector<std::string> sensorNames = getSensorNames();
   setupHttp(config.data.hardware_name, sensorNames);
 
   // Done
@@ -207,4 +206,38 @@ void setupSensors()
   {
     log_i("found %d sensors", sensors.size());
   }
+}
+
+std::vector<std::string> getSensorNames()
+{
+  std::vector<std::string> names;
+  names.reserve(sensors.size());
+
+  for (auto addr : sensors)
+  {
+    // Find
+    std::string name;
+    for (auto &c : config.data.sensors)
+    {
+      if (c.address == addr)
+      {
+        name = c.name;
+        break;
+      }
+    }
+
+    // Default
+    if (name.empty())
+    {
+      char s[APP_CONFIG_MAX_NAME_LENGHT] = {0};
+      snprintf(s, APP_CONFIG_MAX_NAME_LENGHT - 1, "%08X%08X", (uint32_t)(addr >> 32), (uint32_t)addr);
+      name = s;
+    }
+
+    // Add
+    names.push_back(name);
+  }
+
+  assert(names.size() == sensors.size());
+  return names;
 }

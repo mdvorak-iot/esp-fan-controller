@@ -12,7 +12,7 @@ const size_t APP_CONFIG_MAX_RPM = 7; // Must be <= rpmcounter::RPM_MAX_COUNTERS
 // Max supported temperature sensors
 const size_t APP_CONFIG_MAX_SENSORS = 10;
 // Maximum sensor name length, including terminating char
-const size_t MAX_NAME_LENGHT = 16;
+const size_t APP_CONFIG_MAX_NAME_LENGHT = 16;
 // Unused pin
 const auto APP_CONFIG_PIN_DISABLED = GPIO_NUM_MAX;
 
@@ -20,7 +20,7 @@ const auto APP_CONFIG_PIN_DISABLED = GPIO_NUM_MAX;
 struct __packed app_config_sensor
 {
     uint64_t address;
-    char name[MAX_NAME_LENGHT];
+    char name[APP_CONFIG_MAX_NAME_LENGHT];
 };
 
 // Structure for module configurations, excluding URL for CPU temperature polling
@@ -36,7 +36,7 @@ struct __packed app_config_data
     uint8_t high_threshold_celsius;
     uint8_t cpu_threshold_celsius;
     uint16_t cpu_poll_interval_seconds;
-    char hardware_name[MAX_NAME_LENGHT];
+    char hardware_name[APP_CONFIG_MAX_NAME_LENGHT];
 };
 
 struct app_config

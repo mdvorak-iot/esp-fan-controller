@@ -7,10 +7,10 @@ namespace rpmcounter
 
 // This class is not thread-safe
 template <typename T, size_t C>
-class CircularBuffer
+class rpm_counter_circular_buffer
 {
 public:
-    CircularBuffer()
+    rpm_counter_circular_buffer()
         : index_(0), values_{0}
     {
     }
