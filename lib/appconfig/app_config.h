@@ -14,7 +14,7 @@ const size_t APP_CONFIG_MAX_SENSORS = 10;
 // Maximum sensor name length, including terminating char
 const size_t APP_CONFIG_MAX_NAME_LENGHT = 16;
 // Unused pin
-const auto APP_CONFIG_PIN_DISABLED = GPIO_NUM_MAX;
+const auto APP_CONFIG_PIN_DISABLED = static_cast<gpio_num_t>(-1);
 
 // Name of the DS20B18 temperature sensors
 struct __packed app_config_sensor
