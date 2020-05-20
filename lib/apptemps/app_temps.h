@@ -14,12 +14,17 @@ namespace apptemps
     {
         uint64_t address;
         float value;
+        std::string name;
     };
 
     esp_err_t temperature_sensors_init(gpio_num_t pin);
 
-    esp_err_t temperature_request();
+    void temperature_request();
 
-    esp_err_t temperature_values(std::vector<temperature_sensor> &out);
+    void temperature_assign_name(uint64_t address, std::string name);
+
+    void temperature_values(std::vector<temperature_sensor> &out);
+
+    float temperature_value(uint64_t address);
 
 }; // namespace apptemps

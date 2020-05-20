@@ -9,7 +9,15 @@ namespace apptemps
     static DallasTemperature *temp_ = nullptr;
     static std::vector<uint64_t> sensors_;
     static std::vector<float> values_;
+    static std::vector<std::string> names_;
     static portMUX_TYPE lock_ = portMUX_INITIALIZER_UNLOCKED;
+
+    std::string temperature_default_name(uint64_t address)
+    {
+        char s[17]{0};
+        snprintf(s, 16, "%08X%08X", (uint32_t)(address >> 32), (uint32_t)address);
+        return s;
+    }
 
     void temperature_sensors_search()
     {
@@ -28,6 +36,8 @@ namespace apptemps
 
                 portENTER_CRITICAL(&lock_);
                 sensors_.push_back(addr64);
+                values_.push_back(DEVICE_DISCONNECTED_C);
+                names_.push_back(temperature_default_name(addr64));
                 portEXIT_CRITICAL(&lock_);
             }
         }
@@ -50,9 +60,12 @@ namespace apptemps
 
         // Request temperature, so sensors won't have 85C stored as initial value
         temp_->requestTemperatures();
+
+        // Done
+        return ESP_OK;
     }
 
-    esp_err_t temperature_request()
+    void temperature_request()
     {
         temp_->requestTemperatures();
 
@@ -71,11 +84,25 @@ namespace apptemps
         portENTER_CRITICAL(&lock_);
         values_ = values;
         portEXIT_CRITICAL(&lock_);
-
-        return ESP_OK;
     }
 
-    esp_err_t temperature_values(std::vector<temperature_sensor> &out)
+    void temperature_assign_name(uint64_t address, std::string name)
+    {
+        portENTER_CRITICAL(&lock_);
+        // Find
+        for (size_t i = 0; i < sensors_.size(); i++)
+        {
+            if (sensors_[i] == address)
+            {
+                // Store
+                names_[i] = !name.empty() ? name : temperature_default_name(address);
+                break; // NOTE no return here!
+            }
+        }
+        portEXIT_CRITICAL(&lock_);
+    }
+
+    void temperature_values(std::vector<temperature_sensor> &out)
     {
         portENTER_CRITICAL(&lock_);
 
@@ -87,10 +114,33 @@ namespace apptemps
         {
             out[i].address = sensors_[i];
             out[i].value = values_[i];
+            out[i].name = names_[i];
         }
 
         portEXIT_CRITICAL(&lock_);
-        return ESP_OK;
+    }
+
+    float temperature_value(uint64_t address)
+    {
+        float value = DEVICE_DISCONNECTED_C;
+
+        portENTER_CRITICAL(&lock_);
+
+        // Find
+        for (size_t i = 0; i < sensors_.size(); i++)
+        {
+            if (sensors_[i] == address)
+            {
+                // Store
+                value = values_[i];
+                break; // NOTE no return here!
+            }
+        }
+
+        portEXIT_CRITICAL(&lock_);
+
+        // Return
+        return value;
     }
 
 }; // namespace apptemps

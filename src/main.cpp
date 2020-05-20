@@ -12,7 +12,6 @@
 #include "app_temps.h"
 #include "version.h"
 #include "Pwm.h"
-#include "state.h"
 
 using namespace appconfig;
 using namespace rpmcounter;
@@ -36,12 +35,9 @@ const auto MAIN_LOOP_INTERVAL = 1000;
 static app_config config;
 static float dutyPercent;
 static std::unique_ptr<Pwm> pwm;
-static std::vector<temperature_sensor> temps;
 
 // Setup
-void setupSensors();
-void setupHttp(const appconfig::app_config &config, const std::vector<std::string> &sensorNames);
-std::vector<std::string> getSensorNames();
+void setupHttp(const appconfig::app_config &config);
 
 void setup()
 {
@@ -81,7 +77,7 @@ void setup()
   // Init Sensors
   if (config.data.sensors_pin != APP_CONFIG_PIN_DISABLED)
   {
-      ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_init(config.data.sensors_pin));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_init(config.data.sensors_pin));
   }
 
   // RPM
@@ -99,8 +95,7 @@ void setup()
   WiFiSetup(WIFI_SETUP_WPS);
 
   // HTTP
-  std::vector<std::string> sensorNames = getSensorNames();
-  setupHttp(config, sensorNames);
+  setupHttp(config);
 
   // Done
   pinMode(0, OUTPUT);
@@ -111,29 +106,17 @@ void setup()
 void loop()
 {
   // Read temperatures
-  ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_request());
-  ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_values(temps));
-
-  float primaryTemp = DEVICE_DISCONNECTED_C;
-  for (auto s : temps)
-  {
-    if (s.address == config.data.primary_sensor_address)
-    {
-      primaryTemp = s.temperature;
-    }
-  }
+  temperature_request();
+  // Find important one
+  float primaryTemp = temperature_value(config.data.primary_sensor_address);
 
   // Calculate fan speed
   if (primaryTemp != DEVICE_DISCONNECTED_C)
   {
+    // limit to range
     float value = constrain(primaryTemp, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C);
     // map temperature range to duty cycle
     dutyPercent = (value - LO_THERSHOLD_TEMP_C) * (HI_THERSHOLD_DUTY - LO_THERSHOLD_DUTY) / (HI_THERSHOLD_TEMP_C - LO_THERSHOLD_TEMP_C) + LO_THERSHOLD_DUTY;
-
-    // TODO
-    // Values::duty.store(dutyPercent);
-    // Values::temperature.store(primaryTemp);
-    // Values::temperatureReadout.store(millis());
   }
 
   // Control PWM
@@ -141,9 +124,6 @@ void loop()
   {
     ESP_ERROR_CHECK_WITHOUT_ABORT(pwm->duty(dutyPercent * pwm->maxDuty() / 100));
   }
-
-  // TODO
-  //Values::rpm.store(rpm.value());
 
   // Status LED
   static auto status = false;
@@ -153,38 +133,4 @@ void loop()
   // Wait
   static auto previousWakeTime = xTaskGetTickCount();
   vTaskDelayUntil(&previousWakeTime, MAIN_LOOP_INTERVAL);
-}
-
-std::vector<std::string> getSensorNames()
-{
-  std::vector<std::string> names;
-  names.reserve(sensors.size());
-
-  for (auto addr : sensors)
-  {
-    // Find
-    std::string name;
-    for (auto &c : config.data.sensors)
-    {
-      if (c.address == addr)
-      {
-        name = c.name;
-        break;
-      }
-    }
-
-    // Default
-    if (name.empty())
-    {
-      char s[APP_CONFIG_MAX_NAME_LENGHT] = {0};
-      snprintf(s, APP_CONFIG_MAX_NAME_LENGHT - 1, "%08X%08X", (uint32_t)(addr >> 32), (uint32_t)addr);
-      name = s;
-    }
-
-    // Add
-    names.push_back(name);
-  }
-
-  assert(names.size() == sensors.size());
-  return names;
 }

@@ -12,7 +12,7 @@ const size_t APP_CONFIG_MAX_RPM = 7; // Must be <= rpmcounter::RPM_MAX_COUNTERS
 // Max supported temperature sensors
 const size_t APP_CONFIG_MAX_SENSORS = 10;
 // Maximum sensor name length, including terminating char
-const size_t APP_CONFIG_MAX_NAME_LENGHT = 16;
+const size_t APP_CONFIG_MAX_NAME_LENGHT = 20;
 // Unused pin
 const gpio_num_t APP_CONFIG_PIN_DISABLED = static_cast<gpio_num_t>(-1);
 
