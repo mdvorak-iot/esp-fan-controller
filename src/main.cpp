@@ -41,7 +41,7 @@ static std::uint64_t primarySensor;
 
 // Setup
 void setupSensors();
-void setupHttp(const std::string &hardware, const std::vector<std::string> &sensorNames);
+void setupHttp(const appconfig::app_config &config, const std::vector<std::string> &sensorNames);
 std::vector<std::string> getSensorNames();
 
 void setup()
@@ -75,8 +75,8 @@ void setup()
   if (config.data.control_pin != APP_CONFIG_PIN_DISABLED)
   {
     pwm = std::unique_ptr<Pwm>(new Pwm(config.data.control_pin, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION, PWM_INVERTED));
-    ESP_ERROR_CHECK(pwm->begin());
-    ESP_ERROR_CHECK(pwm->duty((float)HI_THERSHOLD_DUTY * pwm->maxDuty() / 100));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(pwm->begin());
+    ESP_ERROR_CHECK_WITHOUT_ABORT(pwm->duty((float)HI_THERSHOLD_DUTY * pwm->maxDuty() / 100));
   }
 
   // Init Sensors
@@ -111,7 +111,7 @@ void setup()
 
   // HTTP
   std::vector<std::string> sensorNames = getSensorNames();
-  setupHttp(config.data.hardware_name, sensorNames);
+  setupHttp(config, sensorNames);
 
   // Done
   pinMode(0, OUTPUT);
@@ -124,7 +124,7 @@ void loop()
   // Read temperatures
   float primaryTemp = DEVICE_DISCONNECTED_C;
 
-  if (!sensors.empty())
+  if (temp && !sensors.empty())
   {
     temp->requestTemperatures();
 
@@ -161,7 +161,10 @@ void loop()
   }
 
   // Control PWM
-  pwm->duty(dutyPercent * pwm->maxDuty() / 100);
+  if (pwm)
+  {
+    ESP_ERROR_CHECK_WITHOUT_ABORT(pwm->duty(dutyPercent * pwm->maxDuty() / 100));
+  }
 
   // TODO
   //Values::rpm.store(rpm.value());
