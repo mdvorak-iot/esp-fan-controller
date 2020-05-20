@@ -47,6 +47,8 @@ esp_err_t app_config_init(app_config &cfg, const char *name)
 
 esp_err_t app_config_update(const app_config &cfg)
 {
+    log_i("app_config update initiated");
+
     auto err = nvs_set_blob(cfg.handle, APP_CONFIG_DATA, &cfg.data, sizeof(app_config_data));
     if (err != ESP_OK)
     {
@@ -65,6 +67,7 @@ esp_err_t app_config_update(const app_config &cfg)
         return err;
     }
 
+    log_i("app_config update committed");
     return ESP_OK;
 }
 

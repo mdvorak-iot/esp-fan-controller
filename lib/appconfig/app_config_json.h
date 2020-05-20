@@ -8,7 +8,7 @@ namespace appconfig
     
 const size_t APP_CONFIG_JSON_SIZE = JSON_OBJECT_SIZE(12 + 3 * APP_CONFIG_MAX_SENSORS + APP_CONFIG_MAX_RPM) + 26;
 
-void app_config_to_json(const app_config &config, StaticJsonDocument<APP_CONFIG_JSON_SIZE> &doc)
+void app_config_to_json(const app_config &config, JsonDocument &doc)
 {
     doc["control_pin"] = config.data.control_pin;
     {
@@ -38,7 +38,7 @@ void app_config_to_json(const app_config &config, StaticJsonDocument<APP_CONFIG_
     doc["cpu_query_url"] = config.cpu_query_url;
 }
 
-app_config app_config_from_json(const StaticJsonDocument<APP_CONFIG_JSON_SIZE> &doc)
+app_config app_config_from_json(const JsonDocument &doc)
 {
     app_config config = APP_CONFIG_DEFAULT();
 

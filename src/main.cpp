@@ -61,10 +61,6 @@ void setup()
   // Init config
   ESP_ERROR_CHECK(app_config_init(config));
 
-  // TODO
-  config.data.control_pin = PWM_PIN;
-  config.data.sensors_pin = GPIO_NUM_15;
-
   // Power PWM
   // NOTE do this ASAP
   if (config.data.control_pin != APP_CONFIG_PIN_DISABLED)
