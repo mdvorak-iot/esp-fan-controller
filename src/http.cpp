@@ -10,6 +10,7 @@
 #include "version.h"
 #include "rpm_counter.h"
 #include "app_config.h"
+#include "app_config_json.h"
 
 static const size_t CONFIG_JSON_SIZE = JSON_OBJECT_SIZE(12 + 3 * appconfig::APP_CONFIG_MAX_SENSORS + appconfig::APP_CONFIG_MAX_RPM) + 26;
 
@@ -79,37 +80,13 @@ esp_err_t getInfoHandler(httpd_req_t *req)
 
 esp_err_t getConfigHandler(httpd_req_t *req)
 {
-    StaticJsonDocument<CONFIG_JSON_SIZE> json;
-
     appconfig::app_config config; // TODO
 
-    json["control_pin"] = config.data.control_pin;
-    {
-        auto rpm_pins = json.createNestedArray("rpm_pins");
-        for (size_t i = 0; i < appconfig::APP_CONFIG_MAX_RPM; i++)
-        {
-            rpm_pins.add(config.data.rpm_pins[i]);
-        }
-    }
-    json["sensors_pin"] = config.data.sensors_pin;
-    json["primary_sensor_address"] = config.data.primary_sensor_address;
-    {
-        auto sensors = json.createNestedArray("sensors");
-        for (size_t i = 0; i < appconfig::APP_CONFIG_MAX_SENSORS; i++)
-        {
-            auto &s = config.data.sensors[i];
-            auto sensorObj = sensors.createNestedObject();
-            sensorObj["address"] = s.address;
-            sensorObj["name"] = s.name;
-        }
-    }
-    json["low_threshold_celsius"] = config.data.low_threshold_celsius;
-    json["high_threshold_celsius"] = config.data.high_threshold_celsius;
-    json["cpu_threshold_celsius"] = config.data.cpu_threshold_celsius;
-    json["cpu_poll_interval_seconds"] = config.data.cpu_poll_interval_seconds;
-    json["hardware_name"] = config.data.hardware_name;
-    json["cpu_query_url"] = config.cpu_query_url;
+    // Prepare
+    StaticJsonDocument<CONFIG_JSON_SIZE> json;
+    appconfig::app_config_to_json(config, json);
 
+    // Serialize
     HttpdResponseWriter writer(req);
     ESP_ERROR_CHECK_WITHOUT_ABORT(httpd_resp_set_type(req, "application/json"));
     serializeJson(json, writer);
@@ -118,41 +95,17 @@ esp_err_t getConfigHandler(httpd_req_t *req)
 
 esp_err_t putConfigHandler(httpd_req_t *req)
 {
-    StaticJsonDocument<CONFIG_JSON_SIZE> json;
+    // Read request
     HttpdRequestReader reader(req);
+    StaticJsonDocument<CONFIG_JSON_SIZE> json;
+
     if (req->content_len == 0 || deserializeJson(json, reader) != DeserializationError::Ok)
     {
         return httpd_resp_set_status(req, "400 Bad Request");
     }
 
-    appconfig::app_config config;
-
-    config.data.control_pin = static_cast<gpio_num_t>(json["control_pin"].as<uint8_t>());
-    {
-        size_t i = 0;
-        for (auto rpmPin : json["rpm_pins"].as<JsonArrayConst>())
-        {
-            config.data.rpm_pins[i++] = static_cast<gpio_num_t>(rpmPin.as<uint8_t>());
-        }
-    }
-    config.data.sensors_pin = static_cast<gpio_num_t>(json["sensors_pin"].as<uint8_t>());
-    config.data.primary_sensor_address = json["primary_sensor_address"].as<uint64_t>();
-    {
-        size_t i = 0;
-        for (auto sensorObj : json["sensors"].as<JsonArrayConst>())
-        {
-            auto &s = config.data.sensors[i];
-            s.address = sensorObj["address"].as<uint64_t>();
-            sensorObj["name"].as<std::string>().copy(s.name, appconfig::APP_CONFIG_MAX_NAME_LENGHT - 1);
-            i++;
-        }
-    }
-    config.data.low_threshold_celsius = json["low_threshold_celsius"].as<uint8_t>();
-    config.data.high_threshold_celsius = json["high_threshold_celsius"].as<uint8_t>();
-    config.data.cpu_threshold_celsius = json["cpu_threshold_celsius"].as<uint8_t>();
-    config.data.cpu_poll_interval_seconds = json["cpu_poll_interval_seconds"].as<uint16_t>();
-    json["hardware_name"].as<std::string>().copy(config.data.hardware_name, appconfig::APP_CONFIG_MAX_NAME_LENGHT - 1);
-    config.cpu_query_url = json["cpu_query_url"].as<std::string>();
+    // Deserialize
+    appconfig::app_config config = appconfig::app_config_from_json(json);
 
     // Update
     esp_err_t err = appconfig::app_config_update(config);

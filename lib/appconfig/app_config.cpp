@@ -35,7 +35,7 @@ esp_err_t app_config_init(app_config &cfg, const char *name)
 
     if (cfg.data.magic_byte != APP_CONFIG_MAGIC_BYTE)
     {
-        cfg.data = CONFIG_DATA_DEFAULT();
+        cfg.data = APP_CONFIG_DATA_DEFAULT();
     }
 
     cfg.cpu_query_url = app_config_cpu_query_url(cfg.handle);

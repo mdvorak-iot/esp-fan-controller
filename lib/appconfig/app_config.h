@@ -6,7 +6,6 @@
 
 namespace appconfig
 {
-
 // Max supported RPM sensors for fans
 const size_t APP_CONFIG_MAX_RPM = 7; // Must be <= rpmcounter::RPM_MAX_COUNTERS
 // Max supported temperature sensors
@@ -14,7 +13,7 @@ const size_t APP_CONFIG_MAX_SENSORS = 10;
 // Maximum sensor name length, including terminating char
 const size_t APP_CONFIG_MAX_NAME_LENGHT = 16;
 // Unused pin
-const auto APP_CONFIG_PIN_DISABLED = static_cast<gpio_num_t>(-1);
+const gpio_num_t APP_CONFIG_PIN_DISABLED = static_cast<gpio_num_t>(-1);
 
 // Name of the DS20B18 temperature sensors
 struct __packed app_config_sensor
@@ -48,8 +47,8 @@ struct app_config
 
 const uint8_t APP_CONFIG_MAGIC_BYTE = 0x21;
 
-// Defaults for struct config_data
-#define CONFIG_DATA_DEFAULT()                   \
+// Defaults for struct app_config_data
+#define APP_CONFIG_DATA_DEFAULT()               \
     {                                           \
         .magic_byte = APP_CONFIG_MAGIC_BYTE,    \
         .control_pin = APP_CONFIG_PIN_DISABLED, \
@@ -62,6 +61,13 @@ const uint8_t APP_CONFIG_MAGIC_BYTE = 0x21;
         .cpu_threshold_celsius = 75,            \
         .cpu_poll_interval_seconds = 10,        \
         .hardware_name = {0},                   \
+    }
+
+// Defaults for struct app_config
+#define APP_CONFIG_DEFAULT()               \
+    {                                      \
+        .handle = 0,                       \
+        .data = APP_CONFIG_DATA_DEFAULT(), \
     }
 
 esp_err_t app_config_init(app_config &cfg, const char *name = "config");
