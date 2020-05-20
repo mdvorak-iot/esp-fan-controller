@@ -67,6 +67,12 @@ namespace apptemps
 
     void temperature_request()
     {
+        if (!temp_)
+        {
+            // Not initialized
+            return;
+        }
+
         temp_->requestTemperatures();
 
         std::vector<float> values;
