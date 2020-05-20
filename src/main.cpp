@@ -9,12 +9,14 @@
 #include <EspWifiSetup.h>
 #include "app_config.h"
 #include "rpm_counter.h"
+#include "app_temps.h"
 #include "version.h"
 #include "Pwm.h"
 #include "state.h"
 
 using namespace appconfig;
 using namespace rpmcounter;
+using namespace apptemps;
 
 // TODO
 const auto LO_THERSHOLD_TEMP_C = 30;
@@ -34,10 +36,7 @@ const auto MAIN_LOOP_INTERVAL = 1000;
 static app_config config;
 static float dutyPercent;
 static std::unique_ptr<Pwm> pwm;
-static std::unique_ptr<OneWire> wire;
-static std::unique_ptr<DallasTemperature> temp;
-static std::vector<uint64_t> sensors;
-static std::uint64_t primarySensor;
+static std::vector<temperature_sensor> temps;
 
 // Setup
 void setupSensors();
@@ -82,17 +81,7 @@ void setup()
   // Init Sensors
   if (config.data.sensors_pin != APP_CONFIG_PIN_DISABLED)
   {
-    wire = std::unique_ptr<OneWire>(new OneWire(config.data.sensors_pin));
-    temp = std::unique_ptr<DallasTemperature>(new DallasTemperature(wire.get()));
-
-    temp->begin();
-    temp->setResolution(12);
-
-    // Enumerate and store all sensors
-    setupSensors();
-
-    // Request temperature, so sensors won't have 85C stored as initial value
-    temp->requestTemperatures();
+      ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_init(config.data.sensors_pin));
   }
 
   // RPM
@@ -122,28 +111,15 @@ void setup()
 void loop()
 {
   // Read temperatures
+  ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_request());
+  ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_values(temps));
+
   float primaryTemp = DEVICE_DISCONNECTED_C;
-
-  if (temp && !sensors.empty())
+  for (auto s : temps)
   {
-    temp->requestTemperatures();
-
-    int i = 0;
-    for (uint64_t addr : sensors)
+    if (s.address == config.data.primary_sensor_address)
     {
-      float c = temp->getTempC(reinterpret_cast<uint8_t *>(&addr));
-      // WARNING esp32 does not support printing of 64-bit integer, and trying to do so corrupts heap!
-      log_d("temp [%d] 0x%08X%08X: %f", i, (uint32_t)(addr >> 32), (uint32_t)addr, c);
-
-      // Store temperature
-
-      // Use temperature for fan duty
-      if (addr == primarySensor)
-      {
-        primaryTemp = c;
-      }
-
-      i++;
+      primaryTemp = s.temperature;
     }
   }
 
@@ -177,38 +153,6 @@ void loop()
   // Wait
   static auto previousWakeTime = xTaskGetTickCount();
   vTaskDelayUntil(&previousWakeTime, MAIN_LOOP_INTERVAL);
-}
-
-void setupSensors()
-{
-  sensors.clear();
-
-  DeviceAddress addr = {};
-  while (wire->search(addr))
-  {
-    if (temp->validAddress(addr) && temp->validFamily(addr))
-    {
-      uint64_t addr64 = 0;
-      memcpy(&addr64, addr, 8);
-
-      // WARNING esp32 does not support printing of 64-bit integer, and trying to do so corrupts heap!
-      log_i("found temp sensor: 0x%08X%08X", (uint32_t)(addr64 >> 32), (uint32_t)addr64);
-
-      if (sensors.empty())
-        primarySensor = addr64;
-
-      sensors.push_back(addr64);
-    }
-  }
-
-  if (sensors.empty())
-  {
-    log_e("no temperature sensors found!");
-  }
-  else
-  {
-    log_i("found %d sensors", sensors.size());
-  }
 }
 
 std::vector<std::string> getSensorNames()

@@ -11,10 +11,12 @@
 #include "rpm_counter.h"
 #include "app_config.h"
 #include "app_config_json.h"
+#include "app_temps.h"
 
 static httpd_handle_t server;
 static appconfig::app_config config;
 static std::vector<uint16_t> rpms;
+static std::vector<apptemps::temperature_sensor> temps;
 static std::string hardware;
 static std::vector<std::string> sensorNames;
 
@@ -34,7 +36,7 @@ esp_err_t getDataHandler(httpd_req_t *req)
     json["up"] = millis();
     //json["temp"] = ;
     //json["duty"] = ;
-    json["rpm"] = rpmcounter::rpm_counter_value(); 
+    json["rpm"] = rpmcounter::rpm_counter_value();
 
     HttpdResponseWriter writer(req);
     httpd_resp_set_type(req, "application/json");
@@ -47,8 +49,11 @@ esp_err_t getMetricsHandler(httpd_req_t *req)
     std::ostringstream m;
 
     m << "# TYPE esp_celsius gauge\n";
-    // TODO
-    //m << "esp_celsius{hardware=\"" << hardware << "\",sensor=\"Water Intake\"} " << std::fixed << std::setprecision(3) << Values::temperature.load() << '\n';
+    apptemps::temperature_values(temps);
+    for (size_t i = 0; i < temps.size(); i++)
+    {
+        m << "esp_celsius{hardware=\"" << hardware << "\",sensor=\"" << sensorNames[i] << "\",address=\"" << temps[i].address << "\"} " << std::fixed << std::setprecision(3) << temps[i].values << '\n';
+    }
 
     // Get RPMs
     m << "# TYPE esp_rpm gauge\n";
