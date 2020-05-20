@@ -130,7 +130,14 @@ void rpm_counter_values(std::vector<uint16_t> &out)
 uint16_t rpm_counter_value()
 {
     portENTER_CRITICAL(&lock_);
-    auto value = sensors_[0]->rpm;
+
+    uint16_t value = 0;
+    if (!sensors_.empty())
+    {
+        assert(sensors_[0] != nullptr);
+        value = sensors_[0]->rpm;
+    }
+
     portEXIT_CRITICAL(&lock_);
 
     return value;
