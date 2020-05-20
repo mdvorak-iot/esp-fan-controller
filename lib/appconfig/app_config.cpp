@@ -1,4 +1,5 @@
 #include "app_config.h"
+#include <esp32-hal-log.h>
 
 namespace appconfig
 {
@@ -35,6 +36,7 @@ esp_err_t app_config_init(app_config &cfg, const char *name)
 
     if (cfg.data.magic_byte != APP_CONFIG_MAGIC_BYTE)
     {
+        log_i("app_config magic byte mismatch, using defaults");
         cfg.data = APP_CONFIG_DATA_DEFAULT();
     }
 

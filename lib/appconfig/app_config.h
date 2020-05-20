@@ -6,6 +6,7 @@
 
 namespace appconfig
 {
+
 // Max supported RPM sensors for fans
 const size_t APP_CONFIG_MAX_RPM = 7; // Must be <= rpmcounter::RPM_MAX_COUNTERS
 // Max supported temperature sensors
@@ -48,19 +49,19 @@ struct app_config
 const uint8_t APP_CONFIG_MAGIC_BYTE = 0x21;
 
 // Defaults for struct app_config_data
-#define APP_CONFIG_DATA_DEFAULT()               \
-    {                                           \
-        .magic_byte = APP_CONFIG_MAGIC_BYTE,    \
-        .control_pin = APP_CONFIG_PIN_DISABLED, \
-        .rpm_pins = {APP_CONFIG_PIN_DISABLED},  \
-        .sensors_pin = APP_CONFIG_PIN_DISABLED, \
-        .primary_sensor_address = 0,            \
-        .sensors = {},                          \
-        .low_threshold_celsius = 25,            \
-        .high_threshold_celsius = 35,           \
-        .cpu_threshold_celsius = 75,            \
-        .cpu_poll_interval_seconds = 10,        \
-        .hardware_name = {0},                   \
+#define APP_CONFIG_DATA_DEFAULT()                                                                                                                                                                    \
+    {                                                                                                                                                                                                \
+        .magic_byte = APP_CONFIG_MAGIC_BYTE,                                                                                                                                                         \
+        .control_pin = APP_CONFIG_PIN_DISABLED,                                                                                                                                                      \
+        .rpm_pins = {APP_CONFIG_PIN_DISABLED, APP_CONFIG_PIN_DISABLED, APP_CONFIG_PIN_DISABLED, APP_CONFIG_PIN_DISABLED, APP_CONFIG_PIN_DISABLED, APP_CONFIG_PIN_DISABLED, APP_CONFIG_PIN_DISABLED}, \
+        .sensors_pin = APP_CONFIG_PIN_DISABLED,                                                                                                                                                      \
+        .primary_sensor_address = 0,                                                                                                                                                                 \
+        .sensors = {},                                                                                                                                                                               \
+        .low_threshold_celsius = 25,                                                                                                                                                                 \
+        .high_threshold_celsius = 35,                                                                                                                                                                \
+        .cpu_threshold_celsius = 75,                                                                                                                                                                 \
+        .cpu_poll_interval_seconds = 10,                                                                                                                                                             \
+        .hardware_name = {0},                                                                                                                                                                        \
     }
 
 // Defaults for struct app_config
