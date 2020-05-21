@@ -15,7 +15,7 @@ namespace apptemps
     std::string temperature_default_name(uint64_t address)
     {
         char s[17]{0};
-        snprintf(s, 16, "%08X%08X", (uint32_t)(address >> 32), (uint32_t)address);
+        snprintf(s, 17, "%08X%08X", (uint32_t)(address >> 32), (uint32_t)address);
         return s;
     }
 

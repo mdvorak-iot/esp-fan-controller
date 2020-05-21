@@ -27,7 +27,7 @@ namespace appconfig
                 auto &s = config.data.sensors[i];
                 auto sensorObj = sensors.createNestedObject();
                 char addrHex[17];
-                snprintf(addrHex, 16, "%08X%08X", (uint32_t)(s.address >> 32), (uint32_t)s.address);
+                snprintf(addrHex, 17, "%08X%08X", (uint32_t)(s.address >> 32), (uint32_t)s.address);
                 sensorObj["address"] = std::string(addrHex);
                 sensorObj["name"] = s.name;
             }
