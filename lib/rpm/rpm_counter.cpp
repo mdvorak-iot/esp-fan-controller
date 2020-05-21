@@ -45,6 +45,8 @@ esp_err_t rpm_counter_add(gpio_num_t pin, pcnt_unit_t unit)
         unit = static_cast<pcnt_unit_t>(sensors_.size());
     }
 
+    log_i("configuring rpm counter %d on pin %d", unit, pin);
+
     // Config
     pcnt_config_t pcnt_config = {
         .pulse_gpio_num = pin,
