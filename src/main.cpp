@@ -18,10 +18,6 @@ using namespace rpmcounter;
 using namespace apptemps;
 
 // TODO
-const auto LO_THERSHOLD_TEMP_C = 30;
-const auto HI_THERSHOLD_TEMP_C = 35;
-const auto LO_THERSHOLD_DUTY = 0.30f;
-const auto HI_THERSHOLD_DUTY = 0.99f;
 const auto RPM_PIN = GPIO_NUM_25;
 const auto PWM_PIN = GPIO_NUM_2;
 
@@ -66,7 +62,7 @@ void setup()
   if (config.data.control_pin != APP_CONFIG_PIN_DISABLED)
   {
     ESP_ERROR_CHECK_WITHOUT_ABORT(pwm.begin(config.data.control_pin, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION, PWM_INVERTED));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(pwm.dutyPercent(HI_THERSHOLD_DUTY));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(pwm.dutyPercent(config.data.high_threshold_duty_percent / 100.0f));
   }
 
   // Init Sensors
@@ -112,10 +108,15 @@ void loop()
     // Calculate fan speed
     if (primaryTemp != DEVICE_DISCONNECTED_C)
     {
+      auto lowThresTemp = config.data.low_threshold_celsius;
+      auto hiThresTemp = config.data.high_threshold_celsius;
+      auto lowThresDuty = config.data.low_threshold_duty_percent / 100.0f;
+      auto hiThresDuty = config.data.high_threshold_duty_percent / 100.0f;
+
       // limit to range
-      float tempInRange = constrain(primaryTemp, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C);
+      float tempInRange = constrain(primaryTemp, lowThresTemp, hiThresTemp);
       // map temperature range to duty cycle
-      dutyPercent = (tempInRange - LO_THERSHOLD_TEMP_C) * (HI_THERSHOLD_DUTY - LO_THERSHOLD_DUTY) / (HI_THERSHOLD_TEMP_C - LO_THERSHOLD_TEMP_C) + LO_THERSHOLD_DUTY;
+      dutyPercent = (tempInRange - lowThresTemp) * (hiThresDuty - lowThresDuty) / (hiThresTemp - lowThresTemp) + lowThresDuty;
     }
 
     // Update PWM
