@@ -11,26 +11,24 @@ namespace appconfig
     void app_config_to_json(const app_config &config, JsonDocument &doc)
     {
         doc["control_pin"] = config.data.control_pin;
+        auto rpm_pins = doc.createNestedArray("rpm_pins");
+        for (size_t i = 0; i < APP_CONFIG_MAX_RPM; i++)
         {
-            auto rpm_pins = doc.createNestedArray("rpm_pins");
-            for (size_t i = 0; i < APP_CONFIG_MAX_RPM; i++)
-            {
-                rpm_pins.add(config.data.rpm_pins[i]);
-            }
+            rpm_pins.add(config.data.rpm_pins[i]);
         }
         doc["sensors_pin"] = config.data.sensors_pin;
-        doc["primary_sensor_address"] = config.data.primary_sensor_address;
+        char primaryAddrHex[17];
+        snprintf(primaryAddrHex, 17, "%08X%08X", (uint32_t)(config.data.primary_sensor_address >> 32), (uint32_t)config.data.primary_sensor_address);
+        doc["primary_sensor_address"] = primaryAddrHex;
+        auto sensors = doc.createNestedArray("sensors");
+        for (size_t i = 0; i < APP_CONFIG_MAX_SENSORS; i++)
         {
-            auto sensors = doc.createNestedArray("sensors");
-            for (size_t i = 0; i < APP_CONFIG_MAX_SENSORS; i++)
-            {
-                auto &s = config.data.sensors[i];
-                auto sensorObj = sensors.createNestedObject();
-                char addrHex[17];
-                snprintf(addrHex, 17, "%08X%08X", (uint32_t)(s.address >> 32), (uint32_t)s.address);
-                sensorObj["address"] = std::string(addrHex);
-                sensorObj["name"] = s.name;
-            }
+            auto &s = config.data.sensors[i];
+            auto sensorObj = sensors.createNestedObject();
+            char addrHex[17];
+            snprintf(addrHex, 17, "%08X%08X", (uint32_t)(s.address >> 32), (uint32_t)s.address);
+            sensorObj["address"] = addrHex;
+            sensorObj["name"] = s.name;
         }
         doc["low_threshold_celsius"] = config.data.low_threshold_celsius;
         doc["high_threshold_celsius"] = config.data.high_threshold_celsius;
@@ -52,7 +50,7 @@ namespace appconfig
             config.data.rpm_pins[i] = rpmPin;
         }
         config.data.sensors_pin = doc.containsKey("sensors_pin") ? static_cast<gpio_num_t>(doc["sensors_pin"].as<int>()) : APP_CONFIG_PIN_DISABLED;
-        config.data.primary_sensor_address = doc["primary_sensor_address"].as<uint64_t>();
+        config.data.primary_sensor_address = strtoull(doc["primary_sensor_address"].as<const char *>(), nullptr, 16);
         auto sensors = doc["sensors"].as<JsonArrayConst>();
         for (size_t i = 0; i < APP_CONFIG_MAX_SENSORS; i++)
         {
