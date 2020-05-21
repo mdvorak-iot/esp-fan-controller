@@ -23,8 +23,7 @@ static std::string ROOT_HTML = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n   
 esp_err_t getRootHandler(httpd_req_t *req)
 {
     log_i("processing request");
-    httpd_resp_send(req, ROOT_HTML.c_str(), ROOT_HTML.length());
-    return ESP_OK;
+    return httpd_resp_send(req, ROOT_HTML.c_str(), ROOT_HTML.length());
 }
 
 esp_err_t getDataHandler(httpd_req_t *req)
@@ -129,11 +128,13 @@ esp_err_t putConfigHandler(httpd_req_t *req)
     // Read request
     if (req->content_len == 0)
     {
-        return httpd_resp_set_status(req, "400 Bad Request");
+        ESP_ERROR_CHECK_WITHOUT_ABORT(httpd_resp_set_status(req, "400 Bad Request"));
+        return httpd_resp_send(req, nullptr, 0);
     }
     if (req->content_len > MAX_BODY_BUFFER_SIZE)
     {
-        return httpd_resp_set_status(req, "413 Payload Too Large");
+        ESP_ERROR_CHECK_WITHOUT_ABORT(httpd_resp_set_status(req, "413 Payload Too Large"));
+        return httpd_resp_send(req, nullptr, 0);
     }
 
     // Receive
@@ -146,29 +147,32 @@ esp_err_t putConfigHandler(httpd_req_t *req)
     if (deserializeJson(json, buf.get(), size) != DeserializationError::Ok)
     {
         log_e("failed to parse JSON in request body");
-        return httpd_resp_set_status(req, "400 Bad Request");
+        ESP_ERROR_CHECK_WITHOUT_ABORT(httpd_resp_set_status(req, "400 Bad Request"));
+        return httpd_resp_send(req, nullptr, 0);
     }
     log_d("json deserialized");
     buf.reset();
 
-    // Parse
-    appconfig::app_config newConfig = appconfig::app_config_from_json(json);
+    // Parse into existing object
+    appconfig::app_config_from_json(json, config_);
 
     // Update
-    esp_err_t err = appconfig::app_config_update(newConfig);
+    esp_err_t err = appconfig::app_config_update(config_);
     if (err != ESP_OK)
     {
         // Failed
         log_e("app_config_update failed: %d %s", err, esp_err_to_name(err));
-        return httpd_resp_set_status(req, "500 Server Internal Error");
+        ESP_ERROR_CHECK_WITHOUT_ABORT(httpd_resp_set_status(req, "500 Server Internal Error"));
+        return httpd_resp_send(req, nullptr, 0);
     }
 
     // Success
-    err = httpd_resp_set_status(req, "204 No Content");
+    ESP_ERROR_CHECK_WITHOUT_ABORT(httpd_resp_set_status(req, "204 No Content"));
+    err = httpd_resp_send(req, nullptr, 0);
     log_d("completed");
 
     // Delayed reboot
-    xTaskCreate(delayedRestart, "reboot", 1024, nullptr, tskIDLE_PRIORITY + 10, nullptr);
+    xTaskCreate(delayedRestart, "reboot", 2048, nullptr, tskIDLE_PRIORITY + 10, nullptr);
 
     return err;
 }
