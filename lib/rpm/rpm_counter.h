@@ -3,13 +3,14 @@
 #include <stdint.h>
 #include <vector>
 #include <esp32-hal-gpio.h>
+#include <driver/pcnt.h>
 
 namespace rpmcounter
 {
 
 const size_t RPM_MAX_COUNTERS = 7;
 
-esp_err_t rpm_counter_add(gpio_num_t pin);
+esp_err_t rpm_counter_add(gpio_num_t pin, pcnt_unit_t unit = PCNT_UNIT_MAX);
 
 esp_err_t rpm_counter_init();
 

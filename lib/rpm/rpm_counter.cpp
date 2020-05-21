@@ -16,31 +16,34 @@ static const unsigned long INTERVAL = 100;
 static const int16_t COUNTER_MAX_VALUE = 32767;
 
 // Helper structures
-struct Snapshot
+struct rpm_counter_count_snapshot
 {
     unsigned long time;
     int16_t count;
 };
 
-struct Sensor
+struct rpm_counter_sensor
 {
     gpio_num_t pin;
     pcnt_unit_t unit;
     uint32_t valueTotal;
     uint16_t rpm;
-    rpm_counter_circular_buffer<Snapshot, SAMPLES> counts;
+    rpm_counter_circular_buffer<rpm_counter_count_snapshot, SAMPLES> counts;
     rpm_counter_circular_buffer<uint16_t, AVERAGE> values;
 };
 
 // Variables
 static portMUX_TYPE lock_ = portMUX_INITIALIZER_UNLOCKED;
-static std::vector<Sensor *> sensors_;
+static std::vector<rpm_counter_sensor *> sensors_;
 
 // Functions
-esp_err_t rpm_counter_add(gpio_num_t pin)
+esp_err_t rpm_counter_add(gpio_num_t pin, pcnt_unit_t unit)
 {
-    // Next available unit
-    auto unit = static_cast<pcnt_unit_t>(sensors_.size());
+    // If default
+    if (unit == PCNT_UNIT_MAX) {
+        // Use next available unit
+        unit = static_cast<pcnt_unit_t>(sensors_.size());
+    }
 
     // Config
     pcnt_config_t pcnt_config = {
@@ -99,7 +102,7 @@ esp_err_t rpm_counter_add(gpio_num_t pin)
 
     // Add to collection
     portENTER_CRITICAL(&lock_);
-    sensors_.push_back(new Sensor{
+    sensors_.push_back(new rpm_counter_sensor{
         .pin = pin,
         .unit = pcnt_config.unit,
         .valueTotal = 0,
@@ -143,7 +146,7 @@ uint16_t rpm_counter_value()
     return value;
 }
 
-void measureLoop(void *)
+void measure_loop(void *)
 {
     // Enable Watchdog
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_task_wdt_add(nullptr));
@@ -199,7 +202,7 @@ void measureLoop(void *)
 
 esp_err_t rpm_counter_init()
 {
-    xTaskCreate(measureLoop, "rpm", 2048, nullptr, tskIDLE_PRIORITY + 1, nullptr);
+    xTaskCreate(measure_loop, "rpm", 2048, nullptr, tskIDLE_PRIORITY + 1, nullptr);
     return ESP_OK;
 }
 
