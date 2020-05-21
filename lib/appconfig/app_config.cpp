@@ -4,26 +4,25 @@
 namespace appconfig
 {
 
-const auto APP_CONFIG_DATA = "data";
-const auto APP_CONFIG_CPU_QUERY_URL = "cpu_query_url";
+static nvs_handle handle_ = 0;
 
-std::string app_config_cpu_query_url(nvs_handle handle)
+std::string app_config_cpu_query_url()
 {
     char v[1024]{0};
     size_t s = sizeof(v);
-    if (nvs_get_str(handle, APP_CONFIG_CPU_QUERY_URL, v, &s) == ESP_OK)
+    if (nvs_get_str(handle_, APP_CONFIG_NVS_CPU_QUERY_URL, v, &s) == ESP_OK)
     {
         return std::string(v, s);
     }
     return std::string();
 }
 
-esp_err_t app_config_init(app_config &cfg, const char *name)
+esp_err_t app_config_init(app_config &cfg)
 {
     // Open
-    if (cfg.handle != 0)
+    if (handle_ == 0)
     {
-        auto err = nvs_open(name, NVS_READWRITE, &cfg.handle);
+        auto err = nvs_open(APP_CONFIG_NVS_NAME, NVS_READWRITE, &handle_);
         if (err != ESP_OK)
         {
             return err;
@@ -32,7 +31,7 @@ esp_err_t app_config_init(app_config &cfg, const char *name)
 
     // Read (ignore errors here)
     size_t size = sizeof(app_config_data);
-    nvs_get_blob(cfg.handle, APP_CONFIG_DATA, &cfg.data, &size);
+    nvs_get_blob(handle_, APP_CONFIG_NVS_DATA, &cfg.data, &size);
 
     if (cfg.data.magic_byte != APP_CONFIG_MAGIC_BYTE)
     {
@@ -40,7 +39,7 @@ esp_err_t app_config_init(app_config &cfg, const char *name)
         cfg.data = APP_CONFIG_DATA_DEFAULT();
     }
 
-    cfg.cpu_query_url = app_config_cpu_query_url(cfg.handle);
+    cfg.cpu_query_url = app_config_cpu_query_url();
 
     return ESP_OK;
 }
@@ -48,20 +47,21 @@ esp_err_t app_config_init(app_config &cfg, const char *name)
 esp_err_t app_config_update(const app_config &cfg)
 {
     log_i("app_config update initiated");
-
-    auto err = nvs_set_blob(cfg.handle, APP_CONFIG_DATA, &cfg.data, sizeof(app_config_data));
+    
+    assert(handle_ != 0);
+    auto err = nvs_set_blob(handle_, APP_CONFIG_NVS_DATA, &cfg.data, sizeof(app_config_data));
     if (err != ESP_OK)
     {
         return err;
     }
 
-    err = nvs_set_str(cfg.handle, APP_CONFIG_CPU_QUERY_URL, cfg.cpu_query_url.c_str());
+    err = nvs_set_str(handle_, APP_CONFIG_NVS_CPU_QUERY_URL, cfg.cpu_query_url.c_str());
     if (err != ESP_OK)
     {
         return err;
     }
 
-    err = nvs_commit(cfg.handle);
+    err = nvs_commit(handle_);
     if (err != ESP_OK)
     {
         return err;

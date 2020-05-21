@@ -41,12 +41,11 @@ struct __packed app_config_data
 
 struct app_config
 {
-    nvs_handle handle;
     app_config_data data;
     std::string cpu_query_url;
 };
 
-const uint8_t APP_CONFIG_MAGIC_BYTE = 0x21;
+const uint8_t APP_CONFIG_MAGIC_BYTE = 0x91;
 
 // Defaults for struct app_config_data
 #define APP_CONFIG_DATA_DEFAULT()                                                                                                                                                                    \
@@ -61,7 +60,7 @@ const uint8_t APP_CONFIG_MAGIC_BYTE = 0x21;
         .high_threshold_celsius = 35,                                                                                                                                                                \
         .cpu_threshold_celsius = 75,                                                                                                                                                                 \
         .cpu_poll_interval_seconds = 10,                                                                                                                                                             \
-        .hardware_name = {0},                                                                                                                                                                        \
+        .hardware_name = {},                                                                                                                                                                        \
     }
 
 // Defaults for struct app_config
@@ -71,7 +70,11 @@ const uint8_t APP_CONFIG_MAGIC_BYTE = 0x21;
         .data = APP_CONFIG_DATA_DEFAULT(), \
     }
 
-esp_err_t app_config_init(app_config &cfg, const char *name = "config");
+const auto APP_CONFIG_NVS_NAME = "appconfig";
+const auto APP_CONFIG_NVS_DATA = "data";
+const auto APP_CONFIG_NVS_CPU_QUERY_URL = "cpu_query_url";
+
+esp_err_t app_config_init(app_config &cfg);
 
 esp_err_t app_config_update(const app_config &cfg);
 
