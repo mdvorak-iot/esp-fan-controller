@@ -12,8 +12,10 @@ std::string app_config_cpu_query_url()
     size_t s = sizeof(v);
     if (nvs_get_str(handle_, APP_CONFIG_NVS_CPU_QUERY_URL, v, &s) == ESP_OK)
     {
+        log_i("stored cpu_query_url %s", v);
         return std::string(v, s);
     }
+    log_i("empty cpu_query_url");
     return std::string();
 }
 

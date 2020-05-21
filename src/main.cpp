@@ -10,12 +10,14 @@
 #include "app_config.h"
 #include "rpm_counter.h"
 #include "app_temps.h"
+#include "cpu_temp.h"
 #include "version.h"
 #include "Pwm.h"
 
 using namespace appconfig;
 using namespace rpmcounter;
 using namespace apptemps;
+using namespace cputemp;
 
 // TODO
 const auto RPM_PIN = GPIO_NUM_25;
@@ -88,6 +90,12 @@ void setup()
   // HTTP
   setupHttp(config);
 
+  // CPU temperature client
+  if (!config.cpu_query_url.empty())
+  {
+    ESP_ERROR_CHECK_WITHOUT_ABORT(cpu_temp_init(config.cpu_query_url, config.data.cpu_poll_interval_seconds * 1000));
+  }
+
   // Done
   pinMode(0, OUTPUT);
   log_i("started %s", VERSION);
@@ -102,21 +110,30 @@ void loop()
   // Control PWM
   if (pwm.configured())
   {
+    // Config
+    auto lowThresTemp = config.data.low_threshold_celsius;
+    auto hiThresTemp = config.data.high_threshold_celsius;
+    auto cpuThresTemp = config.data.cpu_threshold_celsius;
+    auto lowThresDuty = config.data.low_threshold_duty_percent / 100.0f;
+    auto hiThresDuty = config.data.high_threshold_duty_percent / 100.0f;
+
     // Find control temperature
     float primaryTemp = temperature_value(config.data.primary_sensor_address);
 
     // Calculate fan speed
     if (primaryTemp != DEVICE_DISCONNECTED_C)
     {
-      auto lowThresTemp = config.data.low_threshold_celsius;
-      auto hiThresTemp = config.data.high_threshold_celsius;
-      auto lowThresDuty = config.data.low_threshold_duty_percent / 100.0f;
-      auto hiThresDuty = config.data.high_threshold_duty_percent / 100.0f;
-
       // limit to range
       float tempInRange = constrain(primaryTemp, lowThresTemp, hiThresTemp);
       // map temperature range to duty cycle
       dutyPercent = (tempInRange - lowThresTemp) * (hiThresDuty - lowThresDuty) / (hiThresTemp - lowThresTemp) + lowThresDuty;
+    }
+
+    // Override when CPU is overheating
+    auto cpuTemp = cpu_temp_value();
+    if (cpuThresTemp > 0 && cpuTemp > cpuThresTemp)
+    {
+      dutyPercent = hiThresDuty;
     }
 
     // Update PWM

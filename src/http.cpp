@@ -11,6 +11,7 @@
 #include "app_config.h"
 #include "app_config_json.h"
 #include "app_temps.h"
+#include "cpu_temp.h"
 
 const size_t MAX_BODY_BUFFER_SIZE = 1024;
 
@@ -30,13 +31,14 @@ esp_err_t getDataHandler(httpd_req_t *req)
 {
     log_i("processing request");
 
-    StaticJsonDocument<JSON_OBJECT_SIZE(6) + 26> json;
+    StaticJsonDocument<256> json;
 
     json["hardware"] = hardware_;
     json["up"] = millis();
     json["temp"] = apptemps::temperature_value(config_.data.primary_sensor_address);
     //json["duty"] = ;
     json["rpm"] = rpmcounter::rpm_counter_value();
+    json["cpu_temp"] = cputemp::cpu_temp_value();
 
     // Serialize
     const auto BUF_SIZE = 512;
@@ -82,7 +84,7 @@ esp_err_t getInfoHandler(httpd_req_t *req)
 {
     log_i("processing request");
 
-    StaticJsonDocument<JSON_OBJECT_SIZE(3) + 26> json;
+    StaticJsonDocument<128> json;
     json["name"] = hardware_;
     json["version"] = VERSION;
 

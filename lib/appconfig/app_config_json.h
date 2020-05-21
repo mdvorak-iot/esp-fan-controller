@@ -6,7 +6,7 @@
 namespace appconfig
 {
 
-    const size_t APP_CONFIG_JSON_SIZE = JSON_OBJECT_SIZE(15 + 3 * APP_CONFIG_MAX_SENSORS + APP_CONFIG_MAX_RPM) + 26;
+    const size_t APP_CONFIG_JSON_SIZE = 2048;
 
     void app_config_to_json(const app_config &config, JsonDocument &doc)
     {
@@ -28,7 +28,7 @@ namespace appconfig
                 auto sensorObj = sensors.createNestedObject();
                 char addrHex[17];
                 snprintf(addrHex, 16, "%08X%08X", (uint32_t)(s.address >> 32), (uint32_t)s.address);
-                sensorObj["address"] = addrHex;
+                sensorObj["address"] = std::string(addrHex);
                 sensorObj["name"] = s.name;
             }
         }
