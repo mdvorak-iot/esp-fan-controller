@@ -20,8 +20,8 @@ using namespace apptemps;
 // TODO
 const auto LO_THERSHOLD_TEMP_C = 30;
 const auto HI_THERSHOLD_TEMP_C = 35;
-const auto LO_THERSHOLD_DUTY = 30;
-const auto HI_THERSHOLD_DUTY = 99;
+const auto LO_THERSHOLD_DUTY = 0.30f;
+const auto HI_THERSHOLD_DUTY = 0.99f;
 const auto RPM_PIN = GPIO_NUM_25;
 const auto PWM_PIN = GPIO_NUM_2;
 
@@ -34,7 +34,7 @@ const auto MAIN_LOOP_INTERVAL = 1000;
 // Devices
 static app_config config;
 static float dutyPercent;
-static std::unique_ptr<Pwm> pwm;
+static Pwm pwm;
 
 // Setup
 void setupHttp(const appconfig::app_config &config);
@@ -65,9 +65,8 @@ void setup()
   // NOTE do this ASAP
   if (config.data.control_pin != APP_CONFIG_PIN_DISABLED)
   {
-    pwm = std::unique_ptr<Pwm>(new Pwm(config.data.control_pin, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION, PWM_INVERTED));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(pwm->begin());
-    ESP_ERROR_CHECK_WITHOUT_ABORT(pwm->duty((float)HI_THERSHOLD_DUTY * pwm->maxDuty() / 100));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(pwm.begin(config.data.control_pin, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION, PWM_INVERTED));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(pwm.dutyPercent(HI_THERSHOLD_DUTY));
   }
 
   // Init Sensors
@@ -103,22 +102,24 @@ void loop()
 {
   // Read temperatures
   temperature_request();
-  // Find important one
-  float primaryTemp = temperature_value(config.data.primary_sensor_address);
-
-  // Calculate fan speed
-  if (primaryTemp != DEVICE_DISCONNECTED_C)
-  {
-    // limit to range
-    float value = constrain(primaryTemp, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C);
-    // map temperature range to duty cycle
-    dutyPercent = (value - LO_THERSHOLD_TEMP_C) * (HI_THERSHOLD_DUTY - LO_THERSHOLD_DUTY) / (HI_THERSHOLD_TEMP_C - LO_THERSHOLD_TEMP_C) + LO_THERSHOLD_DUTY;
-  }
 
   // Control PWM
-  if (pwm)
+  if (pwm.configured())
   {
-    ESP_ERROR_CHECK_WITHOUT_ABORT(pwm->duty(dutyPercent * pwm->maxDuty() / 100));
+    // Find control temperature
+    float primaryTemp = temperature_value(config.data.primary_sensor_address);
+
+    // Calculate fan speed
+    if (primaryTemp != DEVICE_DISCONNECTED_C)
+    {
+      // limit to range
+      float tempInRange = constrain(primaryTemp, LO_THERSHOLD_TEMP_C, HI_THERSHOLD_TEMP_C);
+      // map temperature range to duty cycle
+      dutyPercent = (tempInRange - LO_THERSHOLD_TEMP_C) * (HI_THERSHOLD_DUTY - LO_THERSHOLD_DUTY) / (HI_THERSHOLD_TEMP_C - LO_THERSHOLD_TEMP_C) + LO_THERSHOLD_DUTY;
+    }
+
+    // Update PWM
+    ESP_ERROR_CHECK_WITHOUT_ABORT(pwm.dutyPercent(dutyPercent));
   }
 
   // Status LED
