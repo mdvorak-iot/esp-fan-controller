@@ -61,9 +61,11 @@ esp_err_t getMetricsHandler(httpd_req_t *req)
 
     std::vector<apptemps::temperature_sensor> temps;
     apptemps::temperature_values(temps);
+    char addrStr[17]{0};
     for (auto t : temps)
     {
-        m << "esp_celsius{hardware=\"" << hardware_ << "\",sensor=\"" << t.name << "\",address=\"" << std::hex << t.address << "\"} " << std::fixed << std::setprecision(3) << t.value << '\n';
+        snprintf(addrStr, 17, "%08X%08X", (uint32_t)(t.address >> 32), (uint32_t)t.address);
+        m << "esp_celsius{hardware=\"" << hardware_ << "\",sensor=\"" << t.name << "\",address=\"" << addrStr << "\"} " << std::fixed << std::setprecision(3) << t.value << '\n';
     }
 
     // Get RPMs
