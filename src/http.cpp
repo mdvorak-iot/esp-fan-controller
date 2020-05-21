@@ -74,7 +74,7 @@ esp_err_t getMetricsHandler(httpd_req_t *req)
     rpmcounter::rpm_counter_values(rpms);
     for (size_t i = 0; i < rpms.size(); i++)
     {
-        m << "esp_rpm{hardware=\"" << hardware_ << "\",sensor=\"Fan " << i << "\"} " << rpms[i] << '\n';
+        m << "esp_rpm{hardware=\"" << hardware_ << "\",sensor=\"Fan " << (i + 1) << "\"} " << rpms[i] << '\n';
     }
 
     auto resp = m.str();

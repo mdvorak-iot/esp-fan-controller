@@ -71,6 +71,10 @@ void setup()
   if (config.data.sensors_pin != APP_CONFIG_PIN_DISABLED)
   {
     ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_init(config.data.sensors_pin));
+    for (const auto &s : config.data.sensors)
+    {
+      temperature_assign_name(s.address, s.name);
+    }
   }
 
   // RPM
