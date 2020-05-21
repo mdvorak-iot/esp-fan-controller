@@ -5,7 +5,7 @@
 #include <driver/gpio.h>
 #include <driver/ledc.h>
 
-class FanPwm
+class Pwm
 {
 public:
     esp_err_t begin(gpio_num_t pin, ledc_timer_t timer, ledc_channel_t channel, uint32_t frequency, ledc_timer_bit_t resolution, bool inverted = false)
@@ -107,7 +107,7 @@ public:
 private:
     ledc_mode_t mode_ = LEDC_HIGH_SPEED_MODE;
     ledc_channel_t channel_ = LEDC_CHANNEL_MAX;
-    std::atomic<uint32_t> duty_;
-    uint32_t maxDuty_ = 0;
     bool inverted_ = false;
+    uint32_t maxDuty_ = 0;
+    std::atomic<uint32_t> duty_;
 };
