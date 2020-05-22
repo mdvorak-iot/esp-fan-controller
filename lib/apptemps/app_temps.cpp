@@ -4,12 +4,9 @@
 
 namespace apptemps
 {
-
     static OneWire *wire_ = nullptr;
     static DallasTemperature *temp_ = nullptr;
-    static std::vector<uint64_t> sensors_;
-    static std::vector<float> values_;
-    static std::vector<std::string> names_;
+    static std::vector<temperature_sensor *> sensors_;
     static portMUX_TYPE lock_ = portMUX_INITIALIZER_UNLOCKED;
 
     std::string temperature_default_name(uint64_t address)
@@ -35,9 +32,13 @@ namespace apptemps
                 log_i("found temp sensor: 0x%08X%08X", (uint32_t)(addr64 >> 32), (uint32_t)addr64);
 
                 portENTER_CRITICAL(&lock_);
-                sensors_.push_back(addr64);
-                values_.push_back(DEVICE_DISCONNECTED_C);
-                names_.push_back(temperature_default_name(addr64));
+                sensors_.push_back(new temperature_sensor{
+                    .address = addr64,
+                    .value = DEVICE_DISCONNECTED_C,
+                    .errors = 0,
+                    .name = temperature_default_name(addr64),
+
+                });
                 portEXIT_CRITICAL(&lock_);
             }
         }
@@ -78,30 +79,40 @@ namespace apptemps
         std::vector<float> values;
         values.reserve(sensors_.size());
 
-        for (uint64_t addr : sensors_)
+        for (auto s : sensors_)
         {
-            float c = temp_->getTempC(reinterpret_cast<uint8_t *>(&addr));
+            float c = temp_->getTempC(reinterpret_cast<uint8_t *>(&s->address));
             // WARNING esp32 does not support printing of 64-bit integer, and trying to do so corrupts heap!
-            log_d("temp [%d] 0x%08X%08X: %f", i, (uint32_t)(addr >> 32), (uint32_t)addr, c);
+            log_d("temp [%d] 0x%08X%08X: %f", i, (uint32_t)(s->address >> 32), (uint32_t)s->address, c);
 
-            values.push_back(c);
+            if (c != DEVICE_DISCONNECTED_C)
+            {
+                if (c != s->value)
+                {
+                    portENTER_CRITICAL(&lock_);
+                    s->value = c;
+                    portEXIT_CRITICAL(&lock_);
+                }
+            }
+            else
+            {
+                portENTER_CRITICAL(&lock_);
+                s->errors++;
+                portEXIT_CRITICAL(&lock_);
+            }
         }
-
-        portENTER_CRITICAL(&lock_);
-        values_ = values;
-        portEXIT_CRITICAL(&lock_);
     }
 
     void temperature_assign_name(uint64_t address, std::string name)
     {
         portENTER_CRITICAL(&lock_);
         // Find
-        for (size_t i = 0; i < sensors_.size(); i++)
+        for (auto s : sensors_)
         {
-            if (sensors_[i] == address)
+            if (s->address == address)
             {
                 // Store
-                names_[i] = !name.empty() ? name : temperature_default_name(address);
+                s->name = !name.empty() ? name : temperature_default_name(address);
                 break; // NOTE no return here!
             }
         }
@@ -118,9 +129,7 @@ namespace apptemps
         // Copy values
         for (size_t i = 0, s = sensors_.size(); i < s; i++)
         {
-            out[i].address = sensors_[i];
-            out[i].value = values_[i];
-            out[i].name = names_[i];
+            out[i] = *sensors_[i];
         }
 
         portEXIT_CRITICAL(&lock_);
@@ -133,12 +142,12 @@ namespace apptemps
         portENTER_CRITICAL(&lock_);
 
         // Find
-        for (size_t i = 0; i < sensors_.size(); i++)
+        for (auto s : sensors_)
         {
-            if (sensors_[i] == address)
+            if (s->address == address)
             {
                 // Store
-                value = values_[i];
+                value = s->value;
                 break; // NOTE no return here!
             }
         }

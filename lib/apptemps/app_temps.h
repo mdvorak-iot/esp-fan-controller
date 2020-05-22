@@ -14,6 +14,7 @@ namespace apptemps
     {
         uint64_t address;
         float value;
+        uint32_t errors;
         std::string name;
     };
 

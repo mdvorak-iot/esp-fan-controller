@@ -68,6 +68,15 @@ esp_err_t getMetricsHandler(httpd_req_t *req)
         m << "esp_celsius{hardware=\"" << hardware_ << "\",sensor=\"" << t.name << "\",address=\"" << addrStr << "\"} " << std::fixed << std::setprecision(3) << t.value << '\n';
     }
 
+    m << "# TYPE esp_errors counter\n";
+    for (auto t : temps)
+    {
+        if (t.errors > 0)
+        {
+            m << "esp_errors{hardware=\"" << hardware_ << "\",sensor=\"" << t.name << "\",address=\"" << addrStr << "\"} " << t.errors << '\n';
+        }
+    }
+
     // Get RPMs
     m << "# TYPE esp_rpm gauge\n";
     std::vector<uint16_t> rpms;
