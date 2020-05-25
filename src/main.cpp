@@ -33,9 +33,10 @@ const auto MAIN_LOOP_INTERVAL = 1000;
 static app_config config;
 static float dutyPercent;
 static Pwm pwm;
+static RpmCounter rpm;
 
 // Setup
-void setupHttp(const appconfig::app_config &config);
+void setupHttp(const appconfig::app_config &config, const rpmcounter::RpmCounter &rpm, const Pwm &pwm);
 
 void setup()
 {
@@ -82,17 +83,17 @@ void setup()
   {
     if (config.data.rpm_pins[i] != APP_CONFIG_PIN_DISABLED)
     {
-      ESP_ERROR_CHECK_WITHOUT_ABORT(rpm_counter_add(config.data.rpm_pins[i]));
+      ESP_ERROR_CHECK_WITHOUT_ABORT(rpm.add(config.data.rpm_pins[i]));
     }
   }
 
-  ESP_ERROR_CHECK_WITHOUT_ABORT(rpm_counter_init());
+  ESP_ERROR_CHECK_WITHOUT_ABORT(rpm.begin());
 
   // WiFi
   WiFiSetup(WIFI_SETUP_WPS);
 
   // HTTP
-  setupHttp(config);
+  setupHttp(config, rpm, pwm);
 
   // CPU temperature client
   if (!config.cpu_query_url.empty())
