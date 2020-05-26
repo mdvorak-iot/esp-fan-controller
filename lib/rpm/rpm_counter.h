@@ -37,4 +37,7 @@ namespace rpmcounter
         static void measureTask(void *p);
     };
 
+    // Singleton
+    extern RpmCounter Rpm;
+
 }; // namespace rpmcounter

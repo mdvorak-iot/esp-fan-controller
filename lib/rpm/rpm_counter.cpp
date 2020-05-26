@@ -9,6 +9,9 @@
 
 namespace rpmcounter
 {
+    // Singleton
+    RpmCounter Rpm;
+
     // Constants
     static const size_t SAMPLES = 10;
     static const unsigned long INTERVAL = 100;
