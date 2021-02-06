@@ -27,7 +27,7 @@ jobs:
     - name: Release
       run: |
         export PLATFORMIO_BUILD_FLAGS='-DVERSION=\"${{ github.ref }}\"'
-        platformio run -e Release
+        platformio run -e release
     - name: Upload firmware.bin
       uses: actions/upload-release-asset@v1
       env:

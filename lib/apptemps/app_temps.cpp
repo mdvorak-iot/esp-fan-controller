@@ -1,6 +1,5 @@
 #include "app_temps.h"
-#include <OneWire.h>
-#include <DallasTemperature.h>
+#include <esp_log.h>
 
 namespace apptemps
 {

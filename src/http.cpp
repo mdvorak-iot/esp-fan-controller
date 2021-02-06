@@ -1,10 +1,9 @@
-#include <Arduino.h>
 #include <sstream>
 #include <iomanip>
 #include <map>
 #include <memory>
 #include <esp_http_server.h>
-#include <ArduinoJson.h>
+#include <cJSON.h>
 #include "app_config.h"
 #include "version.h"
 #include "rpm_counter.h"

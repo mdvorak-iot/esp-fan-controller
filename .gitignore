@@ -5,7 +5,7 @@
 .vscode/ipch
 .idea/
 *.iml
-/CMakeLists.txt
-/CMakeListsPrivate.txt
+CMakeLists.txt
+CMakeListsPrivate.txt
 /cmake-build-*/
 .vscode/settings.json

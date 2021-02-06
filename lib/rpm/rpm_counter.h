@@ -2,8 +2,8 @@
 
 #include <stdint.h>
 #include <vector>
-#include <esp32-hal-gpio.h>
 #include <driver/pcnt.h>
+#include <driver/gpio.h>
 
 namespace rpmcounter
 {

@@ -1,10 +1,9 @@
 #include <atomic>
-#include <Arduino.h>
-#include <ArduinoJson.h>
-#include <esp32-hal-log.h>
+#include <esp_log.h>
 #include <esp_err.h>
 #include <esp_task_wdt.h>
 #include <esp_http_client.h>
+#include <cJSON.h>
 
 namespace cputemp
 {

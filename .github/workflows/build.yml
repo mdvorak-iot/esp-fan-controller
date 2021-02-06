@@ -2,25 +2,29 @@ name: platformio build
 
 on:
   push:
-    branches: [ master ]
+    branches: ["main"]
+    tags: ["v*"]
+    paths-ignore: ["*.md"]
   pull_request:
-    branches: [ master ]
+    branches: ["main"]
+    paths-ignore: ["*.md"]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v1
-      with:
-        python-version: 3.8
-    - name: Install platformio
-      run: |
-        python -m pip install --upgrade pip
-        pip install -U platformio
-    - name: Build
-      run: |
-        platformio run
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.8
+      - name: Install platformio
+        run: |
+          python -m pip install --upgrade pip
+          pip install --upgrade platformio
+      - name: Check
+        run: |
+          platformio check
+      - name: Build
+        run: |
+          platformio run -e debug

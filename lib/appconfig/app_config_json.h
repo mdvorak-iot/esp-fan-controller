@@ -1,7 +1,7 @@
 #pragma once
 
-#include <ArduinoJson.h>
 #include "app_config.h"
+#include <cJSON.h>
 
 namespace appconfig
 {

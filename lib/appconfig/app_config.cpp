@@ -1,5 +1,5 @@
 #include "app_config.h"
-#include <esp32-hal-log.h>
+#include <esp_log.h>
 
 namespace appconfig
 {
