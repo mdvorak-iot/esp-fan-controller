@@ -1,13 +1,14 @@
 #include <esp_wifi.h>
 #include <esp_log.h>
+#include <esp_sleep.h>
+#include <esp_pm.h>
 #include <nvs_flash.h>
 #include <driver/gpio.h>
-#include <driver/ledc.h>
+#include <esp_ota_ops.h>
 #include <double_reset.h>
 #include <wps_config.h>
 #include <wifi_reconnect.h>
-#include "sdkconfig.h"
-#include "version.h"
+#include <status_led.h>
 // #include <memory>
 // #include "app_config.h"
 // #include "rpm_counter.h"
@@ -18,8 +19,7 @@
 static const char TAG[] = "main";
 
 const gpio_num_t STATUS_LED_GPIO = (gpio_num_t)CONFIG_STATUS_LED_GPIO;
-const uint8_t STATUS_LED_ON = CONFIG_STATUS_LED_ON;
-const uint8_t STATUS_LED_OFF = (~CONFIG_STATUS_LED_ON & 1);
+const uint32_t STATUS_LED_ON = CONFIG_STATUS_LED_ON;
 
 // TODO
 const auto RPM_PIN = GPIO_NUM_25;
@@ -30,6 +30,9 @@ const auto PWM_FREQ = 25000u;
 const auto PWM_RESOLUTION = LEDC_TIMER_10_BIT;
 const auto PWM_INVERTED = true;
 const auto MAIN_LOOP_INTERVAL = 1000;
+
+// Global Variables
+static status_led_handle_t status_led = NULL;
 
 // Devices
 // static app_config config;
@@ -42,40 +45,51 @@ const auto MAIN_LOOP_INTERVAL = 1000;
 void setup()
 {
   // Initialize NVS
-  esp_err_t ret = nvs_flash_init();
-  if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+  esp_err_t err = nvs_flash_init();
+  if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
   {
     ESP_ERROR_CHECK(nvs_flash_erase());
-    ret = nvs_flash_init();
+    err = nvs_flash_init();
   }
-  ESP_ERROR_CHECK(ret);
+  ESP_ERROR_CHECK(err);
+
+  // Event loop
+  ESP_ERROR_CHECK(esp_event_loop_create_default());
 
   // Check double reset
   // NOTE this should be called as soon as possible, ideally right after nvs init
   bool reconfigure = false;
-  ESP_ERROR_CHECK(double_reset_start(&reconfigure, 5000));
+  ESP_ERROR_CHECK(double_reset_start(&reconfigure, DOUBLE_RESET_DEFAULT_TIMEOUT));
 
   // Status LED
-  ESP_ERROR_CHECK(gpio_reset_pin(STATUS_LED_GPIO));
-  ESP_ERROR_CHECK(gpio_set_direction(STATUS_LED_GPIO, GPIO_MODE_OUTPUT));
-  ESP_ERROR_CHECK(gpio_set_level(STATUS_LED_GPIO, STATUS_LED_ON));
+  ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_create(STATUS_LED_GPIO, STATUS_LED_ON, &status_led));
+  ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_set_interval(status_led, 500, true));
 
-  // Enable ISR
-  ESP_ERROR_CHECK(gpio_install_isr_service(0));
+  // Events
+  esp_event_handler_register(
+      WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval(status_led, 500, true); }, NULL);
+  esp_event_handler_register(
+      WIFI_EVENT, WIFI_EVENT_STA_WPS_ER_SUCCESS, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval(status_led, 500, true); }, NULL);
+  esp_event_handler_register(
+      WPS_CONFIG, WPS_CONFIG_EVENT_START, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval(status_led, 100, true); }, NULL);
+  esp_event_handler_register(
+      IP_EVENT, IP_EVENT_STA_GOT_IP, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval_for(status_led, 200, false, 700, true); }, NULL);
 
-  // Initialize LEDC
-  ESP_ERROR_CHECK(ledc_fade_func_install(0));
+  // Get app info
+  esp_app_desc_t app_info = {};
+  ESP_ERROR_CHECK_WITHOUT_ABORT(esp_ota_get_partition_description(esp_ota_get_running_partition(), &app_info));
 
   // Initalize WiFi
   ESP_ERROR_CHECK(esp_netif_init());
-  ESP_ERROR_CHECK(esp_event_loop_create_default());
   esp_netif_t *sta_netif = esp_netif_create_default_wifi_sta();
   assert(sta_netif);
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   ESP_ERROR_CHECK(esp_wifi_init(&cfg));
   ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_FLASH));
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+  ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MAX_MODEM));
   ESP_ERROR_CHECK(esp_wifi_start());
+  ESP_ERROR_CHECK(tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, app_info.project_name));
 
   ESP_ERROR_CHECK(wifi_reconnect_start()); // NOTE this must be called before connect, otherwise it might miss connected event
 
@@ -117,19 +131,22 @@ void setup()
   {
     ESP_LOGI(TAG, "reconfigure request detected, starting WPS");
     ESP_ERROR_CHECK(wps_config_start());
+
+    // Wait for WPS to finish
+    wifi_reconnect_wait_for_connection(WPS_CONFIG_TIMEOUT_MS);
   }
   else
   {
     // Connect now
-    ESP_ERROR_CHECK(esp_wifi_connect());
+    wifi_reconnect_resume();
   }
 
   // Wait for WiFi
   ESP_LOGI(TAG, "waiting for wifi");
-  if (!wifi_reconnect_wait_for_connection(AUTO_WPS_TIMEOUT_MS + WIFI_RECONNECT_CONNECT_TIMEOUT_MS))
+  if (!wifi_reconnect_wait_for_connection(WIFI_RECONNECT_CONNECT_TIMEOUT_MS))
   {
     ESP_LOGE(TAG, "failed to connect to wifi!");
-    wifi_reconnect_resume();
+    // NOTE either fallback into emergency operation mode, do nothing, restart..
   }
 
   // HTTP
@@ -142,7 +159,7 @@ void setup()
   // }
 
   // Setup complete
-  ESP_LOGI(TAG, "started %s", VERSION);
+  ESP_LOGI(TAG, "started %s %s", app_info.project_name, app_info.version);
   vTaskDelay(1000 / portTICK_PERIOD_MS);
 }
 
@@ -184,10 +201,6 @@ void loop()
   //   // Update PWM
   //   ESP_ERROR_CHECK_WITHOUT_ABORT(pwm.dutyPercent(dutyPercent));
   // }
-
-  // Toggle Status LED
-  static auto status = false;
-  ESP_ERROR_CHECK_WITHOUT_ABORT(gpio_set_level(STATUS_LED_GPIO, (status = !status) ? STATUS_LED_ON : STATUS_LED_OFF));
 
   // Wait
   static auto previousWakeTime = xTaskGetTickCount();
