@@ -9,6 +9,7 @@
 #include <wps_config.h>
 #include <wifi_reconnect.h>
 #include <status_led.h>
+#include <driver/ledc.h>
 // #include <memory>
 // #include "app_config.h"
 // #include "rpm_counter.h"

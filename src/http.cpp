@@ -4,16 +4,12 @@
 #include <memory>
 #include <esp_http_server.h>
 #include <cJSON.h>
-#include "app_config.h"
-#include "version.h"
-#include "rpm_counter.h"
-#include "app_config.h"
-#include "app_config_json.h"
-#include "app_temps.h"
-#include "cpu_temp.h"
-#include "Pwm.h"
+// #include "app_config.h"
+// #include "app_config_json.h"
 
 const size_t MAX_BODY_BUFFER_SIZE = 1024;
+
+/*
 
 static httpd_handle_t server_;
 static appconfig::app_config config_;
@@ -97,7 +93,7 @@ esp_err_t getInfoHandler(httpd_req_t *req)
 
     StaticJsonDocument<128> json;
     json["name"] = hardware_;
-    json["version"] = VERSION;
+    // TODO json["version"] = VERSION;
 
     // Serialize
     const auto BUF_SIZE = 256;
@@ -207,7 +203,7 @@ void setupHttp(const appconfig::app_config &config, const Pwm &pwm)
     // Store config
     config_ = config;
     hardware_ = config.data.hardware_name;
- 
+
     // Generate default configuration
     httpd_config_t httpd = HTTPD_DEFAULT_CONFIG();
 
@@ -222,3 +218,5 @@ void setupHttp(const appconfig::app_config &config, const Pwm &pwm)
     registerHandler("/config", HTTP_GET, getConfigHandler);
     registerHandler("/config", HTTP_PUT, putConfigHandler);
 }
+
+*/
