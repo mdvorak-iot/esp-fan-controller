@@ -7,8 +7,6 @@
 // #include "app_config.h"
 // #include "app_config_json.h"
 
-const size_t MAX_BODY_BUFFER_SIZE = 1024;
-
 /*
 
 static httpd_handle_t server_;
@@ -198,7 +196,7 @@ void registerHandler(const char *uri, httpd_method_t method, esp_err_t (*handler
     ESP_ERROR_CHECK(httpd_register_uri_handler(server_, &def));
 }
 
-void setupHttp(const appconfig::app_config &config, const Pwm &pwm)
+void setup_http_server(const appconfig::app_config &config, const Pwm &pwm)
 {
     // Store config
     config_ = config;
