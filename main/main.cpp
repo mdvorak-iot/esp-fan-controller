@@ -9,6 +9,8 @@
 #include <status_led.h>
 #include <driver/ledc.h>
 #include "web_server.h"
+#include "metrics.h"
+
 // #include <memory>
 // #include "app_config.h"
 // #include "rpm_counter.h"
@@ -34,8 +36,6 @@ static bool reconfigure = false;
 // static app_config config;
 // static float dutyPercent;
 // static Pwm pwm;
-
-esp_err_t metrics_get(httpd_req_t *req);
 
 static void setup_init()
 {
@@ -155,10 +155,15 @@ esp_err_t root_handler_get(httpd_req_t *req)
 
 static void setup_final()
 {
+  metrics_register_callback([](std::ostream &m) {
+    metric_type(m, "esp_celsius", METRIC_TYPE_GAUGE);
+    metric_value(m, "esp_celsius").label("hardware", "mee").label("sensor", "foobar").is() << 42 << '\n';
+  });
+
   // HTTP Server
   ESP_ERROR_CHECK(web_server_start());
   ESP_ERROR_CHECK(web_server_register_handler("/", HTTP_GET, root_handler_get, NULL));
-  ESP_ERROR_CHECK(web_server_register_handler("/metrics", HTTP_GET, metrics_get, NULL));
+  ESP_ERROR_CHECK(web_server_register_handler("/metrics", HTTP_GET, metrics_http_handler, NULL));
 
   // CPU temperature client
   // if (!config.cpu_query_url.empty())
