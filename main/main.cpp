@@ -8,7 +8,7 @@
 #include <wifi_reconnect.h>
 #include <status_led.h>
 #include <driver/ledc.h>
-#include <esp_http_server.h>
+#include "web_server.h"
 // #include <memory>
 // #include "app_config.h"
 // #include "rpm_counter.h"
@@ -29,15 +29,13 @@ const auto PWM_INVERTED = true;
 const auto MAIN_LOOP_INTERVAL = 1000;
 
 static bool reconfigure = false;
-httpd_handle_t httpd;
 
 // Devices
 // static app_config config;
 // static float dutyPercent;
 // static Pwm pwm;
 
-// Setup
-// void setupHttp(const appconfig::app_config &config, const Pwm &pwm);
+esp_err_t metrics_get(httpd_req_t *req);
 
 static void setup_init()
 {
@@ -157,19 +155,10 @@ esp_err_t root_handler_get(httpd_req_t *req)
 
 static void setup_final()
 {
-
   // HTTP Server
-  httpd_config_t httpd_config = HTTPD_DEFAULT_CONFIG();
-  httpd_config.open_fn = [](httpd_handle_t, int) { status_led_set_interval_for(STATUS_LED_DEFAULT, 0, true, 50, false); return ESP_OK; };
-  ESP_ERROR_CHECK(httpd_start(&httpd, &httpd_config));
-
-  httpd_uri_t def{
-      .uri = "/",
-      .method = HTTP_GET,
-      .handler = root_handler_get,
-      .user_ctx = nullptr,
-  };
-  ESP_ERROR_CHECK(httpd_register_uri_handler(httpd, &def));
+  ESP_ERROR_CHECK(web_server_start());
+  ESP_ERROR_CHECK(web_server_register_handler("/", HTTP_GET, root_handler_get, NULL));
+  ESP_ERROR_CHECK(web_server_register_handler("/metrics", HTTP_GET, metrics_get, NULL));
 
   // CPU temperature client
   // if (!config.cpu_query_url.empty())

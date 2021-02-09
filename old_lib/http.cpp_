@@ -184,16 +184,16 @@ esp_err_t putConfigHandler(httpd_req_t *req)
     return err;
 }
 
-void registerHandler(const char *uri, httpd_method_t method, esp_err_t (*handler)(httpd_req_t *r))
+void register_handler(const char *uri, httpd_method_t method, esp_err_t (*handler)(httpd_req_t *r))
 {
-    log_i("registering %d %s", method, uri);
+    ESP_LOGI(TAG, "registering %d %s", method, uri);
     httpd_uri_t def{
         .uri = uri,
         .method = method,
         .handler = handler,
         .user_ctx = nullptr,
     };
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server_, &def));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(httpd, &def));
 }
 
 void setup_http_server(const appconfig::app_config &config, const Pwm &pwm)
