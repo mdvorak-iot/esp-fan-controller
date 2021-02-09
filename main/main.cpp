@@ -8,6 +8,7 @@
 #include <wifi_reconnect.h>
 #include <status_led.h>
 #include <driver/ledc.h>
+#include <esp_http_server.h>
 // #include <memory>
 // #include "app_config.h"
 // #include "rpm_counter.h"
@@ -28,6 +29,7 @@ const auto PWM_INVERTED = true;
 const auto MAIN_LOOP_INTERVAL = 1000;
 
 static bool reconfigure = false;
+httpd_handle_t httpd;
 
 // Devices
 // static app_config config;
@@ -67,7 +69,7 @@ static void setup_init()
   esp_event_handler_register(
       WPS_CONFIG, WPS_CONFIG_EVENT_START, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval(STATUS_LED_DEFAULT, 100, true); }, NULL);
   esp_event_handler_register(
-      IP_EVENT, IP_EVENT_STA_GOT_IP, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval_for(STATUS_LED_DEFAULT, 200, false, 700, true); }, NULL);
+      IP_EVENT, IP_EVENT_STA_GOT_IP, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval_for(STATUS_LED_DEFAULT, 200, false, 700, false); }, NULL);
 }
 
 static void setup_devices()
@@ -147,11 +149,27 @@ static void setup_wifi()
   }
 }
 
+// TODO not here
+esp_err_t root_handler_get(httpd_req_t *req)
+{
+  return httpd_resp_sendstr(req, "Hello world");
+}
+
 static void setup_final()
 {
 
-  // HTTP
-  // TODO setupHttp(config, pwm);
+  // HTTP Server
+  httpd_config_t httpd_config = HTTPD_DEFAULT_CONFIG();
+  httpd_config.open_fn = [](httpd_handle_t, int) { status_led_set_interval_for(STATUS_LED_DEFAULT, 0, true, 50, false); return ESP_OK; };
+  ESP_ERROR_CHECK(httpd_start(&httpd, &httpd_config));
+
+  httpd_uri_t def{
+      .uri = "/",
+      .method = HTTP_GET,
+      .handler = root_handler_get,
+      .user_ctx = nullptr,
+  };
+  ESP_ERROR_CHECK(httpd_register_uri_handler(httpd, &def));
 
   // CPU temperature client
   // if (!config.cpu_query_url.empty())
