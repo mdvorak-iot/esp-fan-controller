@@ -2,9 +2,9 @@
 #include <esp_log.h>
 #include <status_led.h>
 
-static const char TAG[] = "server";
+static const char TAG[] = "web_server";
 
-httpd_handle_t httpd = NULL;
+static httpd_handle_t httpd = NULL;
 
 static esp_err_t web_server_on_open(httpd_handle_t hd, int sockfd)
 {
