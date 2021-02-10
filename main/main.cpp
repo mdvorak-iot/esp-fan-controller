@@ -10,6 +10,7 @@
 #include <driver/ledc.h>
 #include "web_server.h"
 #include "metrics.h"
+#include "temperature_sensors.h"
 
 // #include <memory>
 // #include "app_config.h"
@@ -31,6 +32,7 @@ const auto PWM_INVERTED = true;
 const auto MAIN_LOOP_INTERVAL = 1000;
 
 static bool reconfigure = false;
+static temperature_sensors_handle_t temperature_sensors;
 
 // Devices
 // static app_config config;
@@ -72,6 +74,15 @@ static void setup_init()
 
 static void setup_devices()
 {
+  // Temperature sensors
+  // TODO pin
+  ESP_ERROR_CHECK(temperature_sensors_create(GPIO_NUM_15, RMT_CHANNEL_0, RMT_CHANNEL_1, &temperature_sensors));
+  ESP_ERROR_CHECK(temperature_sensors_find(temperature_sensors));
+  ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_configure(temperature_sensors, DS18B20_RESOLUTION_12_BIT, true));
+
+  // TODO
+  temperature_sensors_convert(temperature_sensors);
+
   // Custom devices and other init, that needs to be done before waiting for wifi connection
   // // Init config
   // ESP_ERROR_CHECK(app_config_init(config));

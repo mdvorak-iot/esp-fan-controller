@@ -14,4 +14,6 @@ idf_component_register(
         status_led
         wps_config
         wifi_reconnect
+        esp32-owb
+        esp32-ds18b20
 )

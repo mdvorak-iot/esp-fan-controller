@@ -1,0 +1,5 @@
+menu "Application config"
+    config DS18B20_GPIO
+        int "Temperature sensor DS18B20 pin"
+        default 15
+endmenu
