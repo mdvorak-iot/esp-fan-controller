@@ -177,6 +177,60 @@ esp_err_t temperature_sensors_configure(temperature_sensors_handle_t handle, DS1
 
 esp_err_t temperature_sensors_convert(temperature_sensors_handle_t handle)
 {
+    if (handle == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
     ds18b20_convert_all(handle->owb);
+    return ESP_OK;
+}
+
+esp_err_t temperature_sensors_wait_for_conversion(temperature_sensors_handle_t handle)
+{
+    if (handle == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (handle->sensor_count == 0)
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    // All should finish at same time
+    ds18b20_wait_for_conversion(&handle->sensors[0]);
+    return ESP_OK;
+}
+
+size_t temperature_sensors_count(temperature_sensors_handle_t handle)
+{
+    return handle != NULL ? handle->sensor_count : 0;
+}
+
+esp_err_t temperature_sensors_address(temperature_sensors_handle_t handle, size_t index, uint8_t address[8])
+{
+    if (handle == NULL || address == NULL || index >= handle->sensor_count)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    memcpy(address, handle->sensors[index].rom_code.bytes, 8);
+    return ESP_OK;
+}
+
+esp_err_t temperature_sensors_read(temperature_sensors_handle_t handle, size_t index, float *value_c)
+{
+    if (handle == NULL || value_c == NULL || index >= handle->sensor_count)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    DS18B20_ERROR err = ds18b20_read_temp(&handle->sensors[index], value_c);
+    if (err != DS18B20_OK)
+    {
+        ESP_LOGW(TAG, "failed to read temperature for sensor %d: %d", index, err);
+        return ESP_FAIL;
+    }
+
     return ESP_OK;
 }

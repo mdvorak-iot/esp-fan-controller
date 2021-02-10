@@ -63,9 +63,22 @@ static void setup_init()
 
   // Events
   esp_event_handler_register(
-      WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval(STATUS_LED_DEFAULT, 500, true); }, NULL);
-  esp_event_handler_register(
-      WIFI_EVENT, WIFI_EVENT_STA_WPS_ER_SUCCESS, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval(STATUS_LED_DEFAULT, 500, true); }, NULL);
+      WIFI_EVENT, ESP_EVENT_ANY_ID, [](void *, esp_event_base_t, int32_t event_id, void *) {
+        switch (event_id)
+        {
+        case WIFI_EVENT_STA_DISCONNECTED:
+          status_led_set_interval(STATUS_LED_DEFAULT, 500, true);
+          break;
+
+        case WIFI_EVENT_STA_WPS_ER_SUCCESS:
+        case WIFI_EVENT_STA_WPS_ER_TIMEOUT:
+        case WIFI_EVENT_STA_WPS_ER_FAILED:
+          status_led_set_interval(STATUS_LED_DEFAULT, 500, true);
+          wifi_reconnect_resume();
+          break;
+        }
+      },
+      NULL);
   esp_event_handler_register(
       WPS_CONFIG, WPS_CONFIG_EVENT_START, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval(STATUS_LED_DEFAULT, 100, true); }, NULL);
   esp_event_handler_register(
@@ -79,9 +92,6 @@ static void setup_devices()
   ESP_ERROR_CHECK(temperature_sensors_create(GPIO_NUM_15, RMT_CHANNEL_0, RMT_CHANNEL_1, &temperature_sensors));
   ESP_ERROR_CHECK(temperature_sensors_find(temperature_sensors));
   ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_configure(temperature_sensors, DS18B20_RESOLUTION_12_BIT, true));
-
-  // TODO
-  temperature_sensors_convert(temperature_sensors);
 
   // Custom devices and other init, that needs to be done before waiting for wifi connection
   // // Init config
@@ -143,22 +153,23 @@ static void setup_wifi()
     ESP_LOGI(TAG, "reconfigure request detected, starting WPS");
     ESP_ERROR_CHECK(wps_config_start());
     // Wait for WPS to finish
-    wifi_reconnect_wait_for_connection(WPS_CONFIG_TIMEOUT_MS);
+    // TODO
+    //wifi_reconnect_wait_for_connection(WPS_CONFIG_TIMEOUT_MS);
   }
-
 
   // TODO for this board, we don't want to wait for WiFi, but we need to resume reconnect after WPS is complete
 
   // Connect now (needs to be called after WPS)
-  wifi_reconnect_resume();
+  // TODO
+  //wifi_reconnect_resume();
 
   // Wait for WiFi
-  ESP_LOGI(TAG, "waiting for wifi");
-  if (!wifi_reconnect_wait_for_connection(WIFI_RECONNECT_CONNECT_TIMEOUT_MS))
-  {
-    ESP_LOGE(TAG, "failed to connect to wifi!");
-    // NOTE either fallback into emergency operation mode, do nothing, restart..
-  }
+  // ESP_LOGI(TAG, "waiting for wifi");
+  // if (!wifi_reconnect_wait_for_connection(WIFI_RECONNECT_CONNECT_TIMEOUT_MS))
+  // {
+  //   ESP_LOGE(TAG, "failed to connect to wifi!");
+  //   // NOTE either fallback into emergency operation mode, do nothing, restart..
+  // }
 }
 
 // TODO not here
@@ -197,7 +208,23 @@ static void run()
 
   for (;;)
   {
-    vTaskDelay(1); // TODO
+    vTaskDelay(1000 / portTICK_PERIOD_MS); // TODO
+
+    // TODO
+    ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_convert(temperature_sensors));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_wait_for_conversion(temperature_sensors));
+
+    for (size_t i = 0; i < temperature_sensors_count(temperature_sensors); i++)
+    {
+      uint32_t addr[2] = {};
+      float temp_c = -127;
+
+      ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_address(temperature_sensors, i, (uint8_t *)addr));
+      ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_read(temperature_sensors, i, &temp_c));
+
+      ESP_LOGI(TAG, "read temperature %08X%08X: %.3f C", addr[1], addr[0], temp_c);
+    }
+
     // // Read temperatures
     // temperature_request();
 

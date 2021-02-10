@@ -27,6 +27,14 @@ extern "C"
 
     esp_err_t temperature_sensors_convert(temperature_sensors_handle_t handle);
 
+    esp_err_t temperature_sensors_wait_for_conversion(temperature_sensors_handle_t handle);
+
+    size_t temperature_sensors_count(temperature_sensors_handle_t handle);
+
+    esp_err_t temperature_sensors_address(temperature_sensors_handle_t handle, size_t index, uint8_t address[8]);
+
+    esp_err_t temperature_sensors_read(temperature_sensors_handle_t handle, size_t index, float *value_c);
+
 #ifdef __cplusplus
 }
 #endif
