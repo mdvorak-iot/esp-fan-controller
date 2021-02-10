@@ -146,6 +146,9 @@ static void setup_wifi()
     wifi_reconnect_wait_for_connection(WPS_CONFIG_TIMEOUT_MS);
   }
 
+
+  // TODO for this board, we don't want to wait for WiFi, but we need to resume reconnect after WPS is complete
+
   // Connect now (needs to be called after WPS)
   wifi_reconnect_resume();
 
