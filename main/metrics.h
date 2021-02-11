@@ -27,6 +27,8 @@ public:
         out << name;
     }
 
+    // NOTE labels should be sorted by name, alphabetically
+
     inline metric_value &label(const char *name, const char *value)
     {
         begin_label(name) << value << '"';

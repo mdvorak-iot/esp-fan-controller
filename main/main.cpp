@@ -193,7 +193,7 @@ static void setup_final()
     {
       uint64_t addr = 0;
       temperature_sensors_address(temperature_sensors, i, &addr);
-      metric_value(m, "esp_celsius").label("hardware", "TODO").label("sensor", sensor_names[i]).label_hex("address", addr).is() << sensor_values_c[i] << '\n';
+      metric_value(m, "esp_celsius").label_hex("address", addr).label("hardware", "TODO").label("sensor", sensor_names[i]).is() << sensor_values_c[i] << '\n';
     }
   });
 
