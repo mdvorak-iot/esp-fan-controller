@@ -14,6 +14,7 @@ struct temperature_sensors_handle
     owb_rmt_driver_info rmt;
     OneWireBus *owb;
     DS18B20_Info sensors[TEMPERATURE_SENSORS_MAX_COUNT];
+    float calibrations[TEMPERATURE_SENSORS_MAX_COUNT];
     size_t sensor_count;
 };
 
@@ -159,7 +160,7 @@ esp_err_t temperature_sensors_find(temperature_sensors_handle_t handle)
     return ESP_OK;
 }
 
-esp_err_t temperature_sensors_configure(temperature_sensors_handle_t handle, DS18B20_RESOLUTION resolution, bool crc)
+esp_err_t temperature_sensors_configure(temperature_sensors_handle_t handle, uint8_t resolution, bool crc)
 {
     if (handle == NULL)
     {
@@ -169,9 +170,25 @@ esp_err_t temperature_sensors_configure(temperature_sensors_handle_t handle, DS1
     for (size_t i = 0; i < handle->sensor_count; i++)
     {
         ds18b20_use_crc(&handle->sensors[i], crc);
-        ds18b20_set_resolution(&handle->sensors[i], resolution);
+        ds18b20_set_resolution(&handle->sensors[i], (DS18B20_RESOLUTION)resolution);
     }
 
+    return ESP_OK;
+}
+
+esp_err_t temperature_sensors_set_calibration(temperature_sensors_handle_t handle, size_t index, float value_c)
+{
+    if (handle == NULL || index >= handle->sensor_count)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    handle->calibrations[index] = value_c;
+
+    char rom_code_s[17];
+    owb_string_from_rom_code(handle->sensors[index].rom_code, rom_code_s, sizeof(rom_code_s));
+
+    ESP_LOGI(TAG, "set calibration for %d %s: %.3f", index, rom_code_s, value_c);
     return ESP_OK;
 }
 
@@ -207,7 +224,7 @@ size_t temperature_sensors_count(temperature_sensors_handle_t handle)
     return handle != NULL ? handle->sensor_count : 0;
 }
 
-esp_err_t temperature_sensors_address(temperature_sensors_handle_t handle, size_t index, uint8_t address[8])
+esp_err_t temperature_sensors_address(temperature_sensors_handle_t handle, size_t index, uint64_t *address)
 {
     if (handle == NULL || address == NULL || index >= handle->sensor_count)
     {
@@ -225,12 +242,15 @@ esp_err_t temperature_sensors_read(temperature_sensors_handle_t handle, size_t i
         return ESP_ERR_INVALID_ARG;
     }
 
-    DS18B20_ERROR err = ds18b20_read_temp(&handle->sensors[index], value_c);
+    float raw_value_c;
+    DS18B20_ERROR err = ds18b20_read_temp(&handle->sensors[index], &raw_value_c);
     if (err != DS18B20_OK)
     {
         ESP_LOGW(TAG, "failed to read temperature for sensor %d: %d", index, err);
         return ESP_FAIL;
     }
 
+    *value_c = raw_value_c + handle->calibrations[index];
+    ESP_LOGD(TAG, "readout %d: %.3f => %.3f", index, raw_value_c, *value_c);
     return ESP_OK;
 }

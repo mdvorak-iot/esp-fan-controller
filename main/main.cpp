@@ -29,10 +29,11 @@ const auto PWM_PIN = GPIO_NUM_2;
 const auto PWM_FREQ = 25000u;
 const auto PWM_RESOLUTION = LEDC_TIMER_10_BIT;
 const auto PWM_INVERTED = true;
-const auto MAIN_LOOP_INTERVAL = 1000;
 
 static bool reconfigure = false;
-static temperature_sensors_handle_t temperature_sensors;
+static temperature_sensors_handle_t temperature_sensors = NULL;
+static std::string sensor_names[TEMPERATURE_SENSORS_MAX_COUNT];
+static float sensor_values_c[TEMPERATURE_SENSORS_MAX_COUNT] = {0};
 
 // Devices
 // static app_config config;
@@ -88,10 +89,26 @@ static void setup_init()
 static void setup_devices()
 {
   // Temperature sensors
-  // TODO pin
+  // TODO pin from config
   ESP_ERROR_CHECK(temperature_sensors_create(GPIO_NUM_15, RMT_CHANNEL_0, RMT_CHANNEL_1, &temperature_sensors));
   ESP_ERROR_CHECK(temperature_sensors_find(temperature_sensors));
-  ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_configure(temperature_sensors, DS18B20_RESOLUTION_12_BIT, true));
+  ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_configure(temperature_sensors, 12, true));
+
+  // Default sensor names - use its address
+  for (size_t i = 0, c = temperature_sensors_count(temperature_sensors); i < c; i++)
+  {
+    uint64_t addr = 0;
+    temperature_sensors_address(temperature_sensors, i, &addr);
+
+    char addrStr[17];
+    snprintf(addrStr, 17, "%08x%08x", (uint32_t)(addr >> 32), (uint32_t)addr);
+
+    sensor_names[i] = addrStr;
+  }
+
+  // TODO test
+  temperature_sensors_set_calibration(temperature_sensors, 0, 0.45);
+  temperature_sensors_set_calibration(temperature_sensors, 1, -0.45);
 
   // Custom devices and other init, that needs to be done before waiting for wifi connection
   // // Init config
@@ -152,24 +169,13 @@ static void setup_wifi()
   {
     ESP_LOGI(TAG, "reconfigure request detected, starting WPS");
     ESP_ERROR_CHECK(wps_config_start());
-    // Wait for WPS to finish
-    // TODO
-    //wifi_reconnect_wait_for_connection(WPS_CONFIG_TIMEOUT_MS);
+    // NOTE wifi_reconnect_resume will be called when WPS finishes
   }
-
-  // TODO for this board, we don't want to wait for WiFi, but we need to resume reconnect after WPS is complete
-
-  // Connect now (needs to be called after WPS)
-  // TODO
-  //wifi_reconnect_resume();
-
-  // Wait for WiFi
-  // ESP_LOGI(TAG, "waiting for wifi");
-  // if (!wifi_reconnect_wait_for_connection(WIFI_RECONNECT_CONNECT_TIMEOUT_MS))
-  // {
-  //   ESP_LOGE(TAG, "failed to connect to wifi!");
-  //   // NOTE either fallback into emergency operation mode, do nothing, restart..
-  // }
+  else
+  {
+    // Connect right now
+    wifi_reconnect_resume();
+  }
 }
 
 // TODO not here
@@ -180,9 +186,15 @@ esp_err_t root_handler_get(httpd_req_t *req)
 
 static void setup_final()
 {
+  // Setup metrics
   metrics_register_callback([](std::ostream &m) {
     metric_type(m, "esp_celsius", METRIC_TYPE_GAUGE);
-    metric_value(m, "esp_celsius").label("hardware", "mee").label("sensor", "foobar").is() << 42 << '\n';
+    for (size_t i = 0, c = temperature_sensors_count(temperature_sensors); i < c; i++)
+    {
+      uint64_t addr = 0;
+      temperature_sensors_address(temperature_sensors, i, &addr);
+      metric_value(m, "esp_celsius").label("hardware", "TODO").label("sensor", sensor_names[i]).label_hex("address", addr).is() << sensor_values_c[i] << '\n';
+    }
   });
 
   // HTTP Server
@@ -204,25 +216,25 @@ static void setup_final()
 
 static void run()
 {
-  auto previousWakeTime = xTaskGetTickCount();
-
   for (;;)
   {
-    vTaskDelay(1000 / portTICK_PERIOD_MS); // TODO
+    // Minimum wait, feeds watchdog etc
+    vTaskDelay(1);
 
-    // TODO
+    // Read temperatures
     ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_convert(temperature_sensors));
     ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_wait_for_conversion(temperature_sensors));
 
-    for (size_t i = 0; i < temperature_sensors_count(temperature_sensors); i++)
+    for (size_t i = 0, c = temperature_sensors_count(temperature_sensors); i < c; i++)
     {
-      uint32_t addr[2] = {};
+      uint64_t addr = 0;
       float temp_c = -127;
 
-      ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_address(temperature_sensors, i, (uint8_t *)addr));
+      ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_address(temperature_sensors, i, &addr));
       ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_read(temperature_sensors, i, &temp_c));
 
-      ESP_LOGI(TAG, "read temperature %08X%08X: %.3f C", addr[1], addr[0], temp_c);
+      ESP_LOGI(TAG, "read temperature %08x%08x: %.3f C", (uint32_t)(addr >> 32), (uint32_t)addr, temp_c);
+      sensor_values_c[i] = temp_c;
     }
 
     // // Read temperatures
@@ -260,9 +272,6 @@ static void run()
     //   // Update PWM
     //   ESP_ERROR_CHECK_WITHOUT_ABORT(pwm.dutyPercent(dutyPercent));
     // }
-
-    // Wait
-    vTaskDelayUntil(&previousWakeTime, MAIN_LOOP_INTERVAL / portTICK_PERIOD_MS);
   }
 }
 
