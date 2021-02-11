@@ -41,48 +41,6 @@ public:
         return *this;
     }
 
-    inline metric_value &label(const char *name, int value)
-    {
-        begin_label(name) << value << '"';
-        return *this;
-    }
-
-    inline metric_value &label(const char *name, int64_t value)
-    {
-        begin_label(name) << value << '"';
-        return *this;
-    }
-
-    inline metric_value &label(const char *name, uint64_t value)
-    {
-        begin_label(name) << value << '"';
-        return *this;
-    }
-
-    inline metric_value &label_hex(const char *name, uint8_t value)
-    {
-        begin_label(name) << std::setfill('0') << std::setw(2) << std::hex << std::right << value << '"';
-        return *this;
-    }
-
-    inline metric_value &label_hex(const char *name, uint16_t value)
-    {
-        begin_label(name) << std::setfill('0') << std::setw(4) << std::hex << std::right << value << '"';
-        return *this;
-    }
-
-    inline metric_value &label_hex(const char *name, uint32_t value)
-    {
-        begin_label(name) << std::setfill('0') << std::setw(8) << std::hex << std::right << value << '"';
-        return *this;
-    }
-
-    inline metric_value &label_hex(const char *name, uint64_t value)
-    {
-        begin_label(name) << std::setfill('0') << std::setw(16) << std::hex << std::right << value << '"';
-        return *this;
-    }
-
     inline std::ostream &is()
     {
         if (has_label_)

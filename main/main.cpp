@@ -10,7 +10,7 @@
 #include <driver/ledc.h>
 #include "web_server.h"
 #include "metrics.h"
-#include "temperature_sensors.h"
+#include "ds18b20_group.h"
 
 // #include <memory>
 // #include "app_config.h"
@@ -31,9 +31,15 @@ const auto PWM_RESOLUTION = LEDC_TIMER_10_BIT;
 const auto PWM_INVERTED = true;
 
 static bool reconfigure = false;
-static temperature_sensors_handle_t temperature_sensors = NULL;
-static std::string sensor_names[TEMPERATURE_SENSORS_MAX_COUNT];
-static float sensor_values_c[TEMPERATURE_SENSORS_MAX_COUNT] = {0};
+static owb_rmt_driver_info owb_driver = {};
+static ds18b20_group_handle_t sensors = NULL;
+static struct ds18b20_config
+{
+  std::string address;
+  std::string name;
+  float offset_c;
+} sensor_configs[DS18B20_GROUP_MAX_SIZE];
+static float sensor_values_c[DS18B20_GROUP_MAX_SIZE] = {0};
 
 // Devices
 // static app_config config;
@@ -88,27 +94,30 @@ static void setup_init()
 
 static void setup_devices()
 {
-  // Temperature sensors
+  // Initialize OneWireBus
   // TODO pin from config
-  ESP_ERROR_CHECK(temperature_sensors_create(GPIO_NUM_15, RMT_CHANNEL_0, RMT_CHANNEL_1, &temperature_sensors));
-  ESP_ERROR_CHECK(temperature_sensors_find(temperature_sensors));
-  ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_configure(temperature_sensors, 12, true));
+  owb_rmt_initialize(&owb_driver, GPIO_NUM_15, RMT_CHANNEL_0, RMT_CHANNEL_1);
+  owb_use_crc(&owb_driver.bus, true);
 
-  // Default sensor names - use its address
-  for (size_t i = 0, c = temperature_sensors_count(temperature_sensors); i < c; i++)
+  // Temperature sensors
+  ESP_ERROR_CHECK(ds18b20_group_create(&owb_driver.bus, &sensors));
+  ESP_ERROR_CHECK(ds18b20_group_find(sensors));
+  ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_use_crc(sensors, true));
+  ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_set_resolution(sensors, DS18B20_RESOLUTION_12_BIT));
+
+  // Initialize config
+  for (size_t i = 0; i < sensors->count; i++)
   {
-    uint64_t addr = 0;
-    temperature_sensors_address(temperature_sensors, i, &addr);
-
-    char addrStr[17];
-    snprintf(addrStr, 17, "%08x%08x", (uint32_t)(addr >> 32), (uint32_t)addr);
-
-    sensor_names[i] = addrStr;
+    char addr[17];
+    owb_string_from_rom_code(sensors->devices[i].rom_code, addr, sizeof(addr));
+    sensor_configs[i].address = addr;
+    sensor_configs[i].name = addr;
+    sensor_configs[i].offset_c = 0;
   }
 
   // TODO test
-  temperature_sensors_set_calibration(temperature_sensors, 0, 0.45);
-  temperature_sensors_set_calibration(temperature_sensors, 1, -0.45);
+  sensor_configs[0].offset_c = 0.45;
+  sensor_configs[1].offset_c = -0.45;
 
   // Custom devices and other init, that needs to be done before waiting for wifi connection
   // // Init config
@@ -189,11 +198,9 @@ static void setup_final()
   // Setup metrics
   metrics_register_callback([](std::ostream &m) {
     metric_type(m, "esp_celsius", METRIC_TYPE_GAUGE);
-    for (size_t i = 0, c = temperature_sensors_count(temperature_sensors); i < c; i++)
+    for (size_t i = 0; i < sensors->count; i++)
     {
-      uint64_t addr = 0;
-      temperature_sensors_address(temperature_sensors, i, &addr);
-      metric_value(m, "esp_celsius").label_hex("address", addr).label("hardware", "TODO").label("sensor", sensor_names[i]).is() << sensor_values_c[i] << '\n';
+      metric_value(m, "esp_celsius").label("address", sensor_configs[i].address).label("hardware", "TODO").label("sensor", sensor_configs[i].name).is() << sensor_values_c[i] << '\n';
     }
   });
 
@@ -218,23 +225,28 @@ static void run()
 {
   for (;;)
   {
-    // Minimum wait, feeds watchdog etc
+    // TODO wait until again, when readout fails
     vTaskDelay(1);
 
     // Read temperatures
-    ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_convert(temperature_sensors));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_wait_for_conversion(temperature_sensors));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_convert(sensors));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_wait_for_conversion(sensors));
 
-    for (size_t i = 0, c = temperature_sensors_count(temperature_sensors); i < c; i++)
+    for (size_t i = 0; i < sensors->count; i++)
     {
-      uint64_t addr = 0;
       float temp_c = -127;
 
-      ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_address(temperature_sensors, i, &addr));
-      ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_read(temperature_sensors, i, &temp_c));
+      if (ds18b20_group_read(sensors, i, &temp_c) == ESP_OK)
+      {
+        temp_c += sensor_configs[i].offset_c;
 
-      ESP_LOGI(TAG, "read temperature %08x%08x: %.3f C", (uint32_t)(addr >> 32), (uint32_t)addr, temp_c);
-      sensor_values_c[i] = temp_c;
+        ESP_LOGI(TAG, "read temperature %s: %.3f C", sensor_configs[i].address.c_str(), temp_c);
+        sensor_values_c[i] = temp_c;
+      }
+      else
+      {
+        ESP_LOGW(TAG, "failed to read from %s", sensor_configs[i].address.c_str());
+      }
     }
 
     // // Read temperatures
