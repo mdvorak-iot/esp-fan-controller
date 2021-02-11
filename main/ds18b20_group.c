@@ -7,8 +7,6 @@
 
 static const char TAG[] = "ds18b20_group";
 
-static const uint8_t DS18B20_FAMILY = 0x28;
-
 inline static bool ds18b20_check_family(const OneWireBus_ROMCode *rom_code)
 {
     return rom_code->bytes[0] == DS18B20_FAMILY;

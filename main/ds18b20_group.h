@@ -8,6 +8,10 @@
 #define DS18B20_GROUP_MAX_SIZE 10 // TODO CONFIG_DS18B20_GROUP_MAX_SIZE
 #endif
 
+#ifndef DS18B20_FAMILY
+#define DS18B20_FAMILY 0x28
+#endif
+
 #ifdef __cplusplus
 extern "C"
 {
