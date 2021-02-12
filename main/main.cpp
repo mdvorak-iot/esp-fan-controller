@@ -36,12 +36,19 @@ static struct ds18b20_config
   std::string name;
   float offset_c;
 } sensor_configs[DS18B20_GROUP_MAX_SIZE];
-static float sensor_values_c[DS18B20_GROUP_MAX_SIZE] = {0};
+static volatile float sensor_values_c[DS18B20_GROUP_MAX_SIZE] = {0};
+static volatile float fan_duty_percent = 0;
 
-// Devices
-// static app_config config;
-// static float dutyPercent;
-// static Pwm pwm;
+static esp_err_t set_fan_duty(float duty_percent)
+{
+  // Invert TODO configurable
+  esp_err_t err = fan_control_set_duty(PWM_CHANNEL, 1 - duty_percent);
+  if (err == ESP_OK)
+  {
+    fan_duty_percent = duty_percent;
+  }
+  return err;
+}
 
 static void setup_init()
 {
@@ -90,12 +97,24 @@ static void setup_init()
       IP_EVENT, IP_EVENT_STA_GOT_IP, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval_for(STATUS_LED_DEFAULT, 200, false, 700, false); }, NULL);
 }
 
-static void setup_devices()
+static void setup_fans()
 {
   // Configure fan pwm
   ESP_ERROR_CHECK(fan_control_config(PWM_PIN, PWM_TIMER, PWM_CHANNEL));
-  ESP_ERROR_CHECK(fan_control_set_duty(PWM_CHANNEL, 0.1f)); // TODO Inverted, configurable?
+  ESP_ERROR_CHECK(set_fan_duty(0.9));
 
+  // Fan metrics
+  metrics_register_callback([](std::ostream &m) {
+    metric_type(m, "esp_pwm_duty", METRIC_TYPE_GAUGE);
+    metric_value(m, "esp_pwm_duty").label("hardware", "TODO").label("device", "fan").is() << std::setprecision(3) << fan_duty_percent << '\n';
+
+    // TODO metric type?
+    // metric_type(m "esp_rpm", METRIC_TYPE_COUNTER);
+  });
+}
+
+static void setup_sensors()
+{
   // Initialize OneWireBus
   owb_rmt_initialize(&owb_driver, OWB_PIN, RMT_CHANNEL_0, RMT_CHANNEL_1);
   owb_use_crc(&owb_driver.bus, true);
@@ -119,6 +138,15 @@ static void setup_devices()
   // TODO test
   sensor_configs[0].offset_c = 0.45;
   sensor_configs[1].offset_c = -0.45;
+
+  // Temperature metrics
+  metrics_register_callback([](std::ostream &m) {
+    metric_type(m, "esp_celsius", METRIC_TYPE_GAUGE);
+    for (size_t i = 0; i < sensors->count; i++)
+    {
+      metric_value(m, "esp_celsius").label("address", sensor_configs[i].address).label("hardware", "TODO").label("sensor", sensor_configs[i].name).is() << sensor_values_c[i] << '\n';
+    }
+  });
 
   // Custom devices and other init, that needs to be done before waiting for wifi connection
   // // Init config
@@ -196,15 +224,6 @@ esp_err_t root_handler_get(httpd_req_t *req)
 
 static void setup_final()
 {
-  // Setup metrics
-  metrics_register_callback([](std::ostream &m) {
-    metric_type(m, "esp_celsius", METRIC_TYPE_GAUGE);
-    for (size_t i = 0; i < sensors->count; i++)
-    {
-      metric_value(m, "esp_celsius").label("address", sensor_configs[i].address).label("hardware", "TODO").label("sensor", sensor_configs[i].name).is() << sensor_values_c[i] << '\n';
-    }
-  });
-
   // HTTP Server
   ESP_ERROR_CHECK(web_server_start());
   ESP_ERROR_CHECK(web_server_register_handler("/", HTTP_GET, root_handler_get, NULL));
@@ -292,7 +311,8 @@ extern "C" void app_main()
 {
   // Setup
   setup_init();
-  setup_devices();
+  setup_fans();
+  setup_sensors();
   setup_wifi();
   setup_final();
 
