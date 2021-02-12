@@ -2,34 +2,31 @@
 #include <esp_log.h>
 #include <nvs_flash.h>
 #include <driver/gpio.h>
+#include <driver/ledc.h>
 #include <esp_ota_ops.h>
 #include <double_reset.h>
 #include <wps_config.h>
 #include <wifi_reconnect.h>
 #include <status_led.h>
-#include <driver/ledc.h>
 #include "web_server.h"
 #include "metrics.h"
 #include "ds18b20_group.h"
+#include "fan_control.h"
 
-// #include <memory>
 // #include "app_config.h"
 // #include "rpm_counter.h"
-// #include "app_temps.h"
 // #include "cpu_temp.h"
-// #include "Pwm.h"
 
 static const char TAG[] = "main";
 
-// TODO
+// TODO configurable
+const auto OWB_PIN = GPIO_NUM_15;
 const auto RPM_PIN = GPIO_NUM_25;
 const auto PWM_PIN = GPIO_NUM_2;
+const auto PWM_TIMER = LEDC_TIMER_0;
+const auto PWM_CHANNEL = LEDC_CHANNEL_0;
 
 // Configuration
-const auto PWM_FREQ = 25000u;
-const auto PWM_RESOLUTION = LEDC_TIMER_10_BIT;
-const auto PWM_INVERTED = true;
-
 static bool reconfigure = false;
 static owb_rmt_driver_info owb_driver = {};
 static ds18b20_group_handle_t sensors = NULL;
@@ -57,8 +54,9 @@ static void setup_init()
   }
   ESP_ERROR_CHECK(err);
 
-  // Event loop
+  // System services
   ESP_ERROR_CHECK(esp_event_loop_create_default());
+  ESP_ERROR_CHECK(ledc_fade_func_install(0));
 
   // Check double reset
   // NOTE this should be called as soon as possible, ideally right after nvs init
@@ -94,9 +92,12 @@ static void setup_init()
 
 static void setup_devices()
 {
+  // Configure fan pwm
+  ESP_ERROR_CHECK(fan_control_config(PWM_PIN, PWM_TIMER, PWM_CHANNEL));
+  ESP_ERROR_CHECK(fan_control_set_duty(PWM_CHANNEL, 0.1f)); // TODO Inverted, configurable?
+
   // Initialize OneWireBus
-  // TODO pin from config
-  owb_rmt_initialize(&owb_driver, GPIO_NUM_15, RMT_CHANNEL_0, RMT_CHANNEL_1);
+  owb_rmt_initialize(&owb_driver, OWB_PIN, RMT_CHANNEL_0, RMT_CHANNEL_1);
   owb_use_crc(&owb_driver.bus, true);
 
   // Temperature sensors
