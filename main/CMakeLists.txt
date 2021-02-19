@@ -16,4 +16,5 @@ idf_component_register(
         wifi_reconnect
         esp32-owb
         esp32-ds18b20
+        aws_iot_shadow
 )
