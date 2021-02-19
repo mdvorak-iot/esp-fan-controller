@@ -1,8 +1,8 @@
 #pragma once
 #include <esp_http_server.h>
 #include <functional>
-#include <ostream>
 #include <iomanip>
+#include <ostream>
 
 const char METRIC_TYPE_COUNTER[] = "counter";
 const char METRIC_TYPE_GAUGE[] = "gauge";
@@ -20,7 +20,7 @@ inline std::ostream &metric_type(std::ostream &out, const char *name, const char
 
 class metric_value
 {
-public:
+ public:
     metric_value(std::ostream &out, const char *name)
         : out_(out), has_label_(false)
     {
@@ -50,7 +50,7 @@ public:
         return out_ << ' ';
     }
 
-private:
+ private:
     std::ostream &out_;
     bool has_label_;
 

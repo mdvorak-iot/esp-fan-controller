@@ -1,8 +1,8 @@
 #include "ds18b20_group.h"
+#include <ds18b20.h>
 #include <esp_log.h>
 #include <owb.h>
 #include <owb_rmt.h>
-#include <ds18b20.h>
 #include <string.h>
 
 static const char TAG[] = "ds18b20_group";

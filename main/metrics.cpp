@@ -1,8 +1,8 @@
 #include "metrics.h"
-#include <sstream>
-#include <iomanip>
-#include <vector>
 #include <functional>
+#include <iomanip>
+#include <sstream>
+#include <vector>
 
 static const char TAG[] = "metrics";
 

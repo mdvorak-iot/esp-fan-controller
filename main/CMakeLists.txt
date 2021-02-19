@@ -1,7 +1,7 @@
 idf_component_register(
-    SRC_DIRS .
-    INCLUDE_DIRS .
-    REQUIRES 
+        SRC_DIRS .
+        INCLUDE_DIRS .
+        REQUIRES
         freertos
         nvs_flash
         log
@@ -10,7 +10,7 @@ idf_component_register(
         app_update
         esp_http_server
         json
-        double_reset 
+        double_reset
         status_led
         wps_config
         wifi_reconnect
