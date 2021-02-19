@@ -328,7 +328,7 @@ static void setup_aws()
         ESP_LOGE(TAG, "no aws client_key, cannot start");
         return;
     }
-    char *client_key = new char[client_key_len];
+    char *client_key = new char[client_key_len]; // Note: Never freed, since mbedtls does not make a copy
     nvs_get_str(aws_nvs, "client_key", client_key, &client_key_len);
 
     // client_cert
@@ -340,7 +340,7 @@ static void setup_aws()
         free(client_key);
         return;
     }
-    char *client_cert = new char[client_cert_len];
+    char *client_cert = new char[client_cert_len]; // Note: Never freed, since mbedtls does not make a copy
     nvs_get_str(aws_nvs, "client_cert", client_cert, &client_cert_len);
 
     // Config done
@@ -356,12 +356,7 @@ static void setup_aws()
     mqtt_cfg.cert_pem = AWS_ROOT_CA_PEM;
     mqtt_cfg.client_cert_pem = client_cert;
     mqtt_cfg.client_key_pem = client_key;
-
     mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
-
-    // Release dynamic configs
-    free(client_key);
-    free(client_cert);
 
     ESP_ERROR_CHECK(esp_mqtt_client_register_event(mqtt_client, MQTT_EVENT_ANY, mqtt_event_handler, NULL));
 
