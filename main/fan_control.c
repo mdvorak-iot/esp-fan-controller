@@ -1,12 +1,11 @@
 #include "fan_control.h"
-#include <cmath>
 #include <driver/ledc.h>
 #include <esp_log.h>
 
 static const char TAG[] = "fan_control";
 
 static const uint32_t FAN_CONTROL_FREQ_HZ = 25000;
-static const ledc_timer_bit_t FAN_CONTROL_RESOLUTION = (ledc_timer_bit_t)log2(LEDC_APB_CLK_HZ / FAN_CONTROL_FREQ_HZ);
+static const ledc_timer_bit_t FAN_CONTROL_RESOLUTION = LEDC_TIMER_10_BIT;
 static const uint32_t FAN_CONTROL_MAX_DUTY = (1u << FAN_CONTROL_RESOLUTION) - 1;
 
 esp_err_t fan_control_config(gpio_num_t pin, ledc_timer_t timer, ledc_channel_t channel)

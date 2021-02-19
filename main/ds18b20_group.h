@@ -20,7 +20,7 @@ struct ds18b20_group_handle
 {
     OneWireBus *owb;
     DS18B20_Info devices[DS18B20_GROUP_MAX_SIZE];
-    size_t count;
+    uint8_t count;
 };
 
 /**
@@ -58,7 +58,7 @@ esp_err_t ds18b20_group_convert(ds18b20_group_handle_t handle);
 
 esp_err_t ds18b20_group_wait_for_conversion(ds18b20_group_handle_t handle);
 
-esp_err_t ds18b20_group_read(ds18b20_group_handle_t handle, size_t index, float *value_c);
+esp_err_t ds18b20_group_read(ds18b20_group_handle_t handle, uint8_t index, float *value_c);
 
 #ifdef __cplusplus
 }

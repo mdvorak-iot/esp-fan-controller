@@ -31,10 +31,10 @@ esp_err_t ds18b20_group_create(OneWireBus *owb, ds18b20_group_handle_t *handle)
 
     // Check for parasitic-powered devices
     bool parasitic_power = false;
-    owb_status s = ds18b20_check_for_parasite_power(result->owb, &parasitic_power);
-    if (s != OWB_STATUS_OK)
+    DS18B20_ERROR err = ds18b20_check_for_parasite_power(result->owb, &parasitic_power);
+    if (err != DS18B20_OK)
     {
-        ESP_LOGW(TAG, "failed to check for parasitic power");
+        ESP_LOGW(TAG, "failed to check for parasitic power: %d", err);
     }
 
     if (parasitic_power)
@@ -75,8 +75,8 @@ esp_err_t ds18b20_group_find(ds18b20_group_handle_t handle)
     bool found = false;
 
     OneWireBus_ROMCode owb_devices[DS18B20_GROUP_MAX_SIZE];
-    size_t total_count = 0;  // Total count of all devices
-    size_t device_count = 0; // Supported ds18b20 devices
+    uint8_t total_count = 0;  // Total count of all devices
+    uint8_t device_count = 0; // Supported ds18b20 devices
 
     owb_search_first(handle->owb, &search_state, &found);
     while (found)
@@ -96,7 +96,7 @@ esp_err_t ds18b20_group_find(ds18b20_group_handle_t handle)
         }
 
         // Log
-        ESP_LOGI(TAG, "found device %d: %s", device_count, rom_code_s);
+        ESP_LOGI(TAG, "found device %u: %s", device_count, rom_code_s);
 
         // Store and increment count
         owb_devices[device_count++] = search_state.rom_code;
@@ -132,7 +132,7 @@ esp_err_t ds18b20_group_find(ds18b20_group_handle_t handle)
         handle->count = device_count;
     }
 
-    ESP_LOGI(TAG, "found %d ds18b20 devices", handle->count);
+    ESP_LOGI(TAG, "found %u ds18b20 devices", handle->count);
     return ESP_OK;
 }
 
@@ -193,7 +193,7 @@ esp_err_t ds18b20_group_wait_for_conversion(ds18b20_group_handle_t handle)
     return ESP_OK;
 }
 
-esp_err_t ds18b20_group_read(ds18b20_group_handle_t handle, size_t index, float *value_c)
+esp_err_t ds18b20_group_read(ds18b20_group_handle_t handle, uint8_t index, float *value_c)
 {
     if (handle == NULL || value_c == NULL || index >= handle->count)
     {
@@ -203,10 +203,10 @@ esp_err_t ds18b20_group_read(ds18b20_group_handle_t handle, size_t index, float 
     DS18B20_ERROR err = ds18b20_read_temp(&handle->devices[index], value_c);
     if (err != DS18B20_OK)
     {
-        ESP_LOGW(TAG, "failed to read temperature for sensor %d: %d", index, err);
+        ESP_LOGW(TAG, "failed to read temperature for sensor %u: %d", index, err);
         return ESP_FAIL;
     }
 
-    ESP_LOGD(TAG, "readout %d: %.3f", index, *value_c);
+    ESP_LOGD(TAG, "readout %u: %.3f", index, *value_c);
     return ESP_OK;
 }

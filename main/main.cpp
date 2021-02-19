@@ -29,12 +29,12 @@ const auto PWM_CHANNEL = LEDC_CHANNEL_0;
 // Configuration
 static bool reconfigure = false;
 static owb_rmt_driver_info owb_driver = {};
-static ds18b20_group_handle_t sensors = NULL;
+static ds18b20_group_handle_t sensors = nullptr;
 static struct ds18b20_config
 {
     std::string address;
     std::string name;
-    float offset_c;
+    float offset_c = 0;
 } sensor_configs[DS18B20_GROUP_MAX_SIZE];
 static volatile float sensor_values_c[DS18B20_GROUP_MAX_SIZE] = {0};
 static volatile float fan_duty_percent = 0;
@@ -88,13 +88,15 @@ static void setup_init()
                 status_led_set_interval(STATUS_LED_DEFAULT, 500, true);
                 wifi_reconnect_resume();
                 break;
+            default:
+                break;
             }
         },
-        NULL);
+        nullptr);
     esp_event_handler_register(
-        WPS_CONFIG, WPS_CONFIG_EVENT_START, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval(STATUS_LED_DEFAULT, 100, true); }, NULL);
+        WPS_CONFIG_EVENT, WPS_CONFIG_EVENT_START, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval(STATUS_LED_DEFAULT, 100, true); }, nullptr);
     esp_event_handler_register(
-        IP_EVENT, IP_EVENT_STA_GOT_IP, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval_for(STATUS_LED_DEFAULT, 200, false, 700, false); }, NULL);
+        IP_EVENT, IP_EVENT_STA_GOT_IP, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval_for(STATUS_LED_DEFAULT, 200, false, 700, false); }, nullptr);
 }
 
 static void setup_fans()
@@ -226,8 +228,8 @@ static void setup_final()
 {
     // HTTP Server
     ESP_ERROR_CHECK(web_server_start());
-    ESP_ERROR_CHECK(web_server_register_handler("/", HTTP_GET, root_handler_get, NULL));
-    ESP_ERROR_CHECK(web_server_register_handler("/metrics", HTTP_GET, metrics_http_handler, NULL));
+    ESP_ERROR_CHECK(web_server_register_handler("/", HTTP_GET, root_handler_get, nullptr));
+    ESP_ERROR_CHECK(web_server_register_handler("/metrics", HTTP_GET, metrics_http_handler, nullptr));
 
     // CPU temperature client
     // if (!config.cpu_query_url.empty())
@@ -241,7 +243,7 @@ static void setup_final()
     ESP_LOGI(TAG, "started %s %s", app_info.project_name, app_info.version);
 }
 
-static void run()
+_Noreturn static void run()
 {
     for (;;)
     {

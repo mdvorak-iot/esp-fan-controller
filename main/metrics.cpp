@@ -1,6 +1,5 @@
 #include "metrics.h"
 #include <functional>
-#include <iomanip>
 #include <sstream>
 #include <vector>
 
