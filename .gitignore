@@ -4,6 +4,7 @@
 *.iml
 CMakeListsPrivate.txt
 /cmake-build-*/
+/build/
 .vscode/settings.json
 sdkconfig
 sdkconfig.old
