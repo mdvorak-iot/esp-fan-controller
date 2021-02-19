@@ -31,7 +31,7 @@ static gpio_num_t pwm_pin = GPIO_NUM_2;
 
 // Configuration
 static bool reconfigure = false;
-static bool mqtt_started = true;
+static bool mqtt_started = false;
 static esp_mqtt_client_handle_t mqtt_client = nullptr;
 static aws_shadow_handle_t shadow_client = nullptr;
 static owb_rmt_driver_info owb_driver = {};
@@ -341,7 +341,7 @@ static void setup_aws()
         return;
     }
     char *client_cert = new char[client_cert_len];
-    nvs_get_str(aws_nvs, "client_key", client_cert, &client_cert_len);
+    nvs_get_str(aws_nvs, "client_cert", client_cert, &client_cert_len);
 
     // Config done
     nvs_close(aws_nvs);
@@ -435,10 +435,10 @@ static void setup_final()
 
 _Noreturn static void run()
 {
+    TickType_t start = xTaskGetTickCount();
     for (;;)
     {
-        // TODO wait until again, when readout fails
-        vTaskDelay(1);
+        vTaskDelayUntil(&start, 1000 / portTICK_PERIOD_MS);
 
         // Read temperatures
         ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_convert(sensors));
