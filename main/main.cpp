@@ -61,12 +61,14 @@ static void do_mqtt_connect()
     if (!mqtt_started)
     {
         // Initial connection
+        ESP_LOGI(TAG, "start mqtt client");
         ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_start(mqtt_client));
         mqtt_started = true;
     }
     else
     {
         // Ignore error here
+        ESP_LOGI(TAG, "reconnect mqtt client");
         esp_mqtt_client_reconnect(mqtt_client);
     }
 }
@@ -238,6 +240,7 @@ static void shadow_updated(const cJSON *state)
         {
             // Persist value to nvs and restart
             pwm_pin = (gpio_num_t)pwm_pin_value;
+            ESP_LOGI(TAG, "pwm_pin=>%d", pwm_pin);
             // TODO
         }
     }
@@ -272,7 +275,7 @@ static void shadow_event_handler(__unused void *handler_args, __unused esp_event
 static void setup_aws()
 {
     // Read config
-    nvs_handle_t aws_nvs{};
+    nvs_handle_t aws_nvs = 0;
     if (nvs_open("aws", NVS_READONLY, &aws_nvs) != ESP_OK)
     {
         ESP_LOGE(TAG, "no aws config found, cannot start");
