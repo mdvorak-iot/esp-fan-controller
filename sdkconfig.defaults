@@ -1,4 +1,4 @@
-# Power management
+# Enable support for power management
 CONFIG_ESP_WIFI_SLP_IRAM_OPT=y
 CONFIG_ESP32_DEFAULT_CPU_FREQ_80=y
 
