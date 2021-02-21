@@ -71,6 +71,13 @@ static void do_mqtt_connect()
     }
 }
 
+static void do_restart(__unused void *p)
+{
+    esp_mqtt_client_stop(mqtt_client);
+    web_server_stop();
+    esp_restart();
+}
+
 static void setup_init()
 {
     // Initialize NVS
@@ -266,9 +273,9 @@ static void shadow_event_handler_state(__unused void *handler_args, __unused esp
         ESP_ERROR_CHECK_WITHOUT_ABORT(app_config_store(&app_config));
         // And restart, since we cannot re-initialize some of the services
         // TODO restart only when really needed
-        esp_mqtt_client_stop(mqtt_client);
-        web_server_stop();
-        esp_restart();
+        // Note: This must be done from outside mqtt handler
+        // TODO check for error
+        xTaskCreate(do_restart, "do_restart", 512, nullptr, tskIDLE_PRIORITY, nullptr);
     }
 }
 
@@ -369,6 +376,8 @@ _Noreturn static void run()
     TickType_t start = xTaskGetTickCount();
     for (;;)
     {
+        status_led_set_interval_for(STATUS_LED_DEFAULT, 0, true, 40, false);
+
         vTaskDelayUntil(&start, 1000 / portTICK_PERIOD_MS);
 
         // Read temperatures
