@@ -19,6 +19,11 @@ esp_err_t web_server_start()
     return httpd_start(&httpd, &httpd_config);
 }
 
+esp_err_t web_server_stop()
+{
+    return httpd_stop(&httpd);
+}
+
 esp_err_t web_server_register_handler(const char *uri, httpd_method_t method, esp_err_t (*handler)(__unused httpd_req_t *r), void *arg)
 {
     ESP_LOGI(TAG, "registering %d %s", method, uri);

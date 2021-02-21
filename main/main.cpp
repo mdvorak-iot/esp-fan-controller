@@ -264,6 +264,11 @@ static void shadow_event_handler_state(__unused void *handler_args, __unused esp
     if (changed)
     {
         ESP_ERROR_CHECK_WITHOUT_ABORT(app_config_store(&app_config));
+        // And restart, since we cannot re-initialize some of the services
+        // TODO restart only when really needed
+        esp_mqtt_client_stop(mqtt_client);
+        web_server_stop();
+        esp_restart();
     }
 }
 
