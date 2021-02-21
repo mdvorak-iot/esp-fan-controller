@@ -1,3 +1,4 @@
+#include "app_config.h"
 #include "ds18b20_group.h"
 #include "fan_control.h"
 #include "metrics.h"
@@ -18,23 +19,17 @@
 #include <wifi_reconnect.h>
 #include <wps_config.h>
 
-// #include "app_config.h"
-// #include "rpm_counter.h"
-// #include "cpu_temp.h"
-
 static const char TAG[] = "main";
 
-// TODO configurable
-const auto OWB_PIN = GPIO_NUM_15;
-const auto RPM_PIN = GPIO_NUM_25;
 const auto PWM_TIMER = LEDC_TIMER_0;
 const auto PWM_CHANNEL = LEDC_CHANNEL_0;
-
-static gpio_num_t pwm_pin = GPIO_NUM_2;
+const auto SENSORS_RMT_CHANNEL_TX = RMT_CHANNEL_0;
+const auto SENSORS_RMT_CHANNEL_RX = RMT_CHANNEL_1;
 
 // Configuration
 static bool reconfigure = false;
 static bool mqtt_started = false;
+static app_config_t app_config = {};
 static esp_mqtt_client_handle_t mqtt_client = nullptr;
 static aws_iot_shadow_handle_t shadow_client = nullptr;
 static owb_rmt_driver_info owb_driver = {};
@@ -50,8 +45,8 @@ static volatile float fan_duty_percent = 0;
 
 static esp_err_t set_fan_duty(float duty_percent)
 {
-    // Invert TODO configurable
-    esp_err_t err = fan_control_set_duty(PWM_CHANNEL, 1 - duty_percent);
+    // Invert
+    esp_err_t err = fan_control_set_duty(PWM_CHANNEL, app_config.pwm_inverted_duty ? 1 - duty_percent : duty_percent);
     if (err == ESP_OK)
     {
         fan_duty_percent = duty_percent;
@@ -95,8 +90,22 @@ static void setup_init()
     // NOTE this should be called as soon as possible, ideally right after nvs init
     ESP_ERROR_CHECK(double_reset_start(&reconfigure, DOUBLE_RESET_DEFAULT_TIMEOUT));
 
-    // Status LED
-    ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_create_default());
+    // Load app_config
+    err = app_config_load(&app_config);
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(TAG, "failed to load app_config, using defaults");
+        app_config.status_led_pin = (gpio_num_t)(STATUS_LED_DEFAULT_GPIO);
+        app_config.status_led_on_state = STATUS_LED_DEFAULT_ON;
+        // TODO from Kconfig
+        app_config.pwm_pin = GPIO_NUM_2;
+        app_config.pwm_inverted_duty = true;
+        app_config.sensors_pin = GPIO_NUM_15;
+        // TODO other defaults
+    }
+
+    // Status LED (custom STATUS_LED_DEFAULT init)
+    ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_create(app_config.status_led_pin, app_config.status_led_on_state, &STATUS_LED_DEFAULT));
     ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_set_interval(STATUS_LED_DEFAULT, 500, true));
 
     // Events
@@ -128,7 +137,7 @@ static void setup_init()
 static void setup_fans()
 {
     // Configure fan pwm
-    ESP_ERROR_CHECK(fan_control_config(pwm_pin, PWM_TIMER, PWM_CHANNEL));
+    ESP_ERROR_CHECK(fan_control_config(app_config.pwm_pin, PWM_TIMER, PWM_CHANNEL));
     ESP_ERROR_CHECK(set_fan_duty(0.9));
 
     // Fan metrics
@@ -144,7 +153,7 @@ static void setup_fans()
 static void setup_sensors()
 {
     // Initialize OneWireBus
-    owb_rmt_initialize(&owb_driver, OWB_PIN, RMT_CHANNEL_0, RMT_CHANNEL_1);
+    owb_rmt_initialize(&owb_driver, app_config.sensors_pin, SENSORS_RMT_CHANNEL_TX, SENSORS_RMT_CHANNEL_RX);
     owb_use_crc(&owb_driver.bus, true);
 
     // Temperature sensors
@@ -212,7 +221,7 @@ static void setup_sensors()
 
 static void mqtt_event_handler(__unused void *handler_args, __unused esp_event_base_t event_base, __unused int32_t event_id, void *event_data)
 {
-    auto event = (esp_mqtt_event_handle_t)event_data;
+    auto event = (const esp_mqtt_event_t *)event_data;
 
     switch (event->event_id)
     {
@@ -227,17 +236,6 @@ static void mqtt_event_handler(__unused void *handler_args, __unused esp_event_b
         break;
     }
 }
-
-struct hardware_config_t
-{
-    std::string name;
-    gpio_num_t status_led_pin;
-    gpio_num_t pwm_pin;
-    std::vector<gpio_num_t> rpm_pins;
-    gpio_num_t sensors_pin;
-    uint64_t primary_sensor_address;
-    std::map<uint64_t, std::string> sensors;
-};
 
 inline int cJSON_GetIntValue_(const cJSON *object, const char *key, int default_value)
 {
@@ -256,58 +254,27 @@ static bool is_pin_used(int pin)
     return false;
 }
 
-static void shadow_updated(const cJSON *state, cJSON *reported)
+static void shadow_event_handler_state(__unused void *handler_args, __unused esp_event_base_t event_base,
+                                       __unused int32_t event_id, void *event_data)
 {
-    int pwm_pin_value = cJSON_GetIntValue_(state, "pwm_pin", pwm_pin);
-    if (is_pin_valid(pwm_pin_value) && !is_pin_used(pwm_pin) && pwm_pin_value != pwm_pin)
-    {
-        // Persist value to nvs and restart
-        // TODO
-        pwm_pin = (gpio_num_t)pwm_pin_value;
-        ESP_LOGI(TAG, "pwm_pin=>%d", pwm_pin);
+    auto *event = (const aws_iot_shadow_event_data_t *)event_data;
+    auto *state = event->state;
 
-        // TODO only when delta
-        cJSON_AddNumberToObject(reported, "pwm_pin", pwm_pin_value);
+    bool changed = false;
+    ESP_ERROR_CHECK_WITHOUT_ABORT(app_config_update_from(&app_config, state->data, &changed, state->to_report));
+
+    // Persist
+    if (changed)
+    {
+        ESP_ERROR_CHECK_WITHOUT_ABORT(app_config_store(&app_config));
     }
 }
 
-static void shadow_event_handler(__unused void *handler_args, __unused esp_event_base_t event_base, int32_t event_id, void *event_data)
+static void shadow_event_handler_error(__unused void *handler_args, __unused esp_event_base_t event_base,
+                                       __unused int32_t event_id, void *event_data)
 {
-    auto *event = (aws_iot_shadow_event_data_t *)event_data;
-
-    if (event->event_id == AWS_IOT_SHADOW_EVENT_GET_ACCEPTED
-        || event->event_id == AWS_IOT_SHADOW_EVENT_UPDATE_ACCEPTED
-        || event->event_id == AWS_IOT_SHADOW_EVENT_UPDATE_DELTA)
-    {
-        cJSON *reported = cJSON_CreateObject();
-
-        // Update (these collection might contain different keys, and be present both, or either one
-        if (event->desired)
-        {
-            shadow_updated(event->desired, reported);
-        }
-        if (event->delta)
-        {
-            shadow_updated(event->delta, reported);
-        }
-
-        // Report state, if changed
-        if (reported->child)
-        {
-            esp_err_t err = aws_iot_shadow_request_update_reported(event->handle, reported, nullptr);
-            if (err != ESP_OK)
-            {
-                ESP_LOGW(TAG, "failed to update shadow reported values: %d", err);
-            }
-        }
-
-        // Release
-        cJSON_Delete(reported);
-    }
-    else if (event->event_id == AWS_IOT_SHADOW_EVENT_ERROR)
-    {
-        ESP_LOGW(TAG, "shadow error %d %s", event->error->code, event->error->message);
-    }
+    auto *event = (const aws_iot_shadow_event_data_t *)event_data;
+    ESP_LOGW(TAG, "shadow error %d %s", event->error->code, event->error->message);
 }
 
 static void setup_aws()
@@ -335,7 +302,8 @@ static void setup_aws()
 
     // Shadow
     ESP_ERROR_CHECK(aws_iot_shadow_init(mqtt_client, aws_iot_shadow_thing_name(mqtt_cfg.client_id), nullptr, &shadow_client));
-    ESP_ERROR_CHECK(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_ANY, shadow_event_handler, nullptr));
+    ESP_ERROR_CHECK(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_STATE, shadow_event_handler_state, nullptr));
+    ESP_ERROR_CHECK(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_ERROR, shadow_event_handler_error, nullptr));
 }
 
 static void setup_wifi()
