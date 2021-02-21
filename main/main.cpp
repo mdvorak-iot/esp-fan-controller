@@ -36,7 +36,7 @@ static gpio_num_t pwm_pin = GPIO_NUM_2;
 static bool reconfigure = false;
 static bool mqtt_started = false;
 static esp_mqtt_client_handle_t mqtt_client = nullptr;
-static aws_shadow_handle_t shadow_client = nullptr;
+static aws_iot_shadow_handle_t shadow_client = nullptr;
 static owb_rmt_driver_info owb_driver = {};
 static ds18b20_group_handle_t sensors = nullptr;
 static struct ds18b20_config
