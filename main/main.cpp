@@ -314,6 +314,8 @@ static void setup_aws()
 {
     // MQTT
     esp_mqtt_client_config_t mqtt_cfg = {};
+    mqtt_cfg.cert_pem = AWS_IOT_ROOT_CA;
+    mqtt_cfg.cert_len = AWS_IOT_ROOT_CA_LEN;
     ESP_ERROR_CHECK(aws_iot_mqtt_config_load(&mqtt_cfg));
     ESP_LOGI(TAG, "mqtt host=%s, port=%u, client_id=%s", mqtt_cfg.host, mqtt_cfg.port, mqtt_cfg.client_id);
 
