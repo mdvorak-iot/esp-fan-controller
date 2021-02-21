@@ -2,6 +2,7 @@
 #include "fan_control.h"
 #include "metrics.h"
 #include "web_server.h"
+#include <aws_iot_mqtt_config.h>
 #include <aws_shadow.h>
 #include <aws_shadow_mqtt_error.h>
 #include <double_reset.h>
@@ -9,9 +10,11 @@
 #include <esp_log.h>
 #include <esp_ota_ops.h>
 #include <esp_wifi.h>
+#include <map>
 #include <mqtt_client.h>
 #include <nvs_flash.h>
 #include <status_led.h>
+#include <vector>
 #include <wifi_reconnect.h>
 #include <wps_config.h>
 
@@ -225,28 +228,46 @@ static void mqtt_event_handler(__unused void *handler_args, __unused esp_event_b
     }
 }
 
+struct hardware_config_t
+{
+    std::string name;
+    gpio_num_t status_led_pin;
+    gpio_num_t pwm_pin;
+    std::vector<gpio_num_t> rpm_pins;
+    gpio_num_t sensors_pin;
+    uint64_t primary_sensor_address;
+    std::map<uint64_t, std::string> sensors;
+};
+
 inline int cJSON_GetIntValue_(const cJSON *object, const char *key, int default_value)
 {
     cJSON *value = cJSON_GetObjectItemCaseSensitive(object, key);
     return cJSON_IsNumber(value) ? value->valueint : default_value;
 }
 
-static void shadow_updated(const cJSON *state)
+static bool is_pin_valid(int pin)
+{
+    return pin >= 0 && pin < GPIO_NUM_MAX;
+}
+
+static bool is_pin_used(int pin)
+{
+    // TODO
+    return false;
+}
+
+static void shadow_updated(const cJSON *state, cJSON *reported)
 {
     int pwm_pin_value = cJSON_GetIntValue_(state, "pwm_pin", pwm_pin);
-    if (pwm_pin_value > 0 && pwm_pin_value < GPIO_NUM_MAX)
+    if (is_pin_valid(pwm_pin_value) && !is_pin_used(pwm_pin) && pwm_pin_value != pwm_pin)
     {
-        if (pwm_pin_value != pwm_pin)
-        {
-            // Persist value to nvs and restart
-            pwm_pin = (gpio_num_t)pwm_pin_value;
-            ESP_LOGI(TAG, "pwm_pin=>%d", pwm_pin);
-            // TODO
-        }
-    }
-    else
-    {
-        // Fix desired value
+        // Persist value to nvs and restart
+        // TODO
+        pwm_pin = (gpio_num_t)pwm_pin_value;
+        ESP_LOGI(TAG, "pwm_pin=>%d", pwm_pin);
+
+        // TODO only when delta
+        cJSON_AddNumberToObject(reported, "pwm_pin", pwm_pin_value);
     }
 }
 
@@ -256,15 +277,30 @@ static void shadow_event_handler(__unused void *handler_args, __unused esp_event
 
     if (event->event_id == AWS_SHADOW_EVENT_UPDATE_ACCEPTED || event->event_id == AWS_SHADOW_EVENT_UPDATE_DELTA)
     {
+        cJSON *reported = cJSON_CreateObject();
+
+        // Update (these collection might contain different keys, and be present both, or either one
         if (event->desired)
         {
-            shadow_updated(event->desired);
+            shadow_updated(event->desired, reported);
         }
         if (event->delta)
         {
-            shadow_updated(event->delta);
-            aws_shadow_request_update_reported(event->handle, event->delta, nullptr);
+            shadow_updated(event->delta, reported);
         }
+
+        // Report state, if changed
+        if (reported->child)
+        {
+            esp_err_t err = aws_shadow_request_update_reported(event->handle, reported, nullptr);
+            if (err != ESP_OK)
+            {
+                ESP_LOGW(TAG, "failed to update shadow reported values: %d", err);
+            }
+        }
+
+        // Release
+        cJSON_Delete(reported);
     }
     else if (event->event_id == AWS_SHADOW_EVENT_ERROR)
     {
@@ -274,99 +310,28 @@ static void shadow_event_handler(__unused void *handler_args, __unused esp_event
 
 static void setup_aws()
 {
-    // Read config
-    nvs_handle_t aws_nvs = 0;
-    if (nvs_open("aws", NVS_READONLY, &aws_nvs) != ESP_OK)
-    {
-        ESP_LOGE(TAG, "no aws config found, cannot start");
-        return;
-    }
-
-    // Host
-    char host[255] = {};
-    size_t host_len = sizeof(host);
-    nvs_get_str(aws_nvs, "host", host, &host_len);
-    if (host_len == 0)
-    {
-        ESP_LOGE(TAG, "no aws host, cannot start");
-        return;
-    }
-
-    // Port
-    uint32_t port = 0;
-    nvs_get_u32(aws_nvs, "port", &port);
-    if (port == 0)
-    {
-        // Use default
-        port = 8883;
-    }
-
-    // client_id
-    char client_id[255] = {};
-    size_t client_id_len = sizeof(client_id);
-    nvs_get_str(aws_nvs, "client_id", client_id, &client_id_len);
-    if (client_id_len == 0)
-    {
-        ESP_LOGE(TAG, "no aws client_id, cannot start");
-        return;
-    }
-
-    // Parse thing_name
-    const char *thing_name = strstr(client_id, ":thing/");
-    if (thing_name == nullptr)
-    {
-        ESP_LOGE(TAG, "unable to extract thing_name from client_id '%s'", client_id);
-        return;
-    }
-    thing_name += strlen(":thing/");
-
-    // client_key
-    size_t client_key_len = 0;
-    nvs_get_str(aws_nvs, "client_key", nullptr, &client_key_len);
-    if (client_key_len == 0)
-    {
-        ESP_LOGE(TAG, "no aws client_key, cannot start");
-        return;
-    }
-    char *client_key = new char[client_key_len]; // Note: Never freed, since mbedtls does not make a copy
-    nvs_get_str(aws_nvs, "client_key", client_key, &client_key_len);
-
-    // client_cert
-    size_t client_cert_len = 0;
-    nvs_get_str(aws_nvs, "client_cert", nullptr, &client_cert_len);
-    if (client_cert_len == 0)
-    {
-        ESP_LOGE(TAG, "no aws client_key, cannot start");
-        free(client_key);
-        return;
-    }
-    char *client_cert = new char[client_cert_len]; // Note: Never freed, since mbedtls does not make a copy
-    nvs_get_str(aws_nvs, "client_cert", client_cert, &client_cert_len);
-
-    // Config done
-    nvs_close(aws_nvs);
-
     // MQTT
     esp_mqtt_client_config_t mqtt_cfg = {};
-    mqtt_cfg.host = host;
-    mqtt_cfg.port = port;
-    mqtt_cfg.client_id = client_id;
-    mqtt_cfg.transport = MQTT_TRANSPORT_OVER_SSL;
-    mqtt_cfg.protocol_ver = MQTT_PROTOCOL_V_3_1_1;
-    mqtt_cfg.cert_pem = AWS_ROOT_CA_PEM;
-    mqtt_cfg.client_cert_pem = client_cert;
-    mqtt_cfg.client_key_pem = client_key;
+    ESP_ERROR_CHECK(aws_iot_mqtt_config_load(&mqtt_cfg));
+    ESP_LOGI(TAG, "mqtt host=%s, port=%u, client_id=%s", mqtt_cfg.host, mqtt_cfg.port, mqtt_cfg.client_id);
+
     mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
+    if (!mqtt_client)
+    {
+        ESP_LOGE(TAG, "failed to init mqtt client");
+        return;
+    }
 
-    ESP_ERROR_CHECK(esp_mqtt_client_register_event(mqtt_client, MQTT_EVENT_ANY, mqtt_event_handler, NULL));
+    ESP_ERROR_CHECK(esp_mqtt_client_register_event(mqtt_client, MQTT_EVENT_ANY, mqtt_event_handler, nullptr));
 
+    // Connect when WiFi connects
     esp_event_handler_instance_register(
         IP_EVENT, IP_EVENT_STA_GOT_IP, [](void *, esp_event_base_t, int32_t, void *) { do_mqtt_connect(); },
         nullptr, nullptr);
 
     // Shadow
-    ESP_ERROR_CHECK(aws_shadow_init(mqtt_client, thing_name, NULL, &shadow_client));
-    ESP_ERROR_CHECK(aws_shadow_handler_register(shadow_client, AWS_SHADOW_EVENT_ANY, shadow_event_handler, NULL));
+    ESP_ERROR_CHECK(aws_shadow_init(mqtt_client, aws_shadow_thing_name(mqtt_cfg.client_id), nullptr, &shadow_client));
+    ESP_ERROR_CHECK(aws_shadow_handler_register(shadow_client, AWS_SHADOW_EVENT_ANY, shadow_event_handler, nullptr));
 }
 
 static void setup_wifi()
