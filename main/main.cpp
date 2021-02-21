@@ -11,11 +11,9 @@
 #include <esp_log.h>
 #include <esp_ota_ops.h>
 #include <esp_wifi.h>
-#include <map>
 #include <mqtt_client.h>
 #include <nvs_flash.h>
 #include <status_led.h>
-#include <vector>
 #include <wifi_reconnect.h>
 #include <wps_config.h>
 
