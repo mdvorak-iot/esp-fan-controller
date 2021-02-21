@@ -3,8 +3,8 @@
 #include "metrics.h"
 #include "web_server.h"
 #include <aws_iot_mqtt_config.h>
-#include <aws_shadow.h>
-#include <aws_shadow_mqtt_error.h>
+#include <aws_iot_shadow.h>
+#include <aws_iot_shadow_mqtt_error.h>
 #include <double_reset.h>
 #include <driver/ledc.h>
 #include <esp_log.h>
@@ -221,7 +221,7 @@ static void mqtt_event_handler(__unused void *handler_args, __unused esp_event_b
         break;
 
     case MQTT_EVENT_ERROR:
-        aws_shadow_log_mqtt_error(TAG, event->error_handle);
+        aws_iot_shadow_log_mqtt_error(TAG, event->error_handle);
         break;
     default:
         break;
@@ -273,9 +273,11 @@ static void shadow_updated(const cJSON *state, cJSON *reported)
 
 static void shadow_event_handler(__unused void *handler_args, __unused esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
-    auto *event = (aws_shadow_event_data_t *)event_data;
+    auto *event = (aws_iot_shadow_event_data_t *)event_data;
 
-    if (event->event_id == AWS_SHADOW_EVENT_GET_ACCEPTED || event->event_id == AWS_SHADOW_EVENT_UPDATE_ACCEPTED || event->event_id == AWS_SHADOW_EVENT_UPDATE_DELTA)
+    if (event->event_id == AWS_IOT_SHADOW_EVENT_GET_ACCEPTED
+        || event->event_id == AWS_IOT_SHADOW_EVENT_UPDATE_ACCEPTED
+        || event->event_id == AWS_IOT_SHADOW_EVENT_UPDATE_DELTA)
     {
         cJSON *reported = cJSON_CreateObject();
 
@@ -292,7 +294,7 @@ static void shadow_event_handler(__unused void *handler_args, __unused esp_event
         // Report state, if changed
         if (reported->child)
         {
-            esp_err_t err = aws_shadow_request_update_reported(event->handle, reported, nullptr);
+            esp_err_t err = aws_iot_shadow_request_update_reported(event->handle, reported, nullptr);
             if (err != ESP_OK)
             {
                 ESP_LOGW(TAG, "failed to update shadow reported values: %d", err);
@@ -302,7 +304,7 @@ static void shadow_event_handler(__unused void *handler_args, __unused esp_event
         // Release
         cJSON_Delete(reported);
     }
-    else if (event->event_id == AWS_SHADOW_EVENT_ERROR)
+    else if (event->event_id == AWS_IOT_SHADOW_EVENT_ERROR)
     {
         ESP_LOGW(TAG, "shadow error %d %s", event->error->code, event->error->message);
     }
@@ -330,8 +332,8 @@ static void setup_aws()
         nullptr, nullptr);
 
     // Shadow
-    ESP_ERROR_CHECK(aws_shadow_init(mqtt_client, aws_shadow_thing_name(mqtt_cfg.client_id), nullptr, &shadow_client));
-    ESP_ERROR_CHECK(aws_shadow_handler_register(shadow_client, AWS_SHADOW_EVENT_ANY, shadow_event_handler, nullptr));
+    ESP_ERROR_CHECK(aws_iot_shadow_init(mqtt_client, aws_iot_shadow_thing_name(mqtt_cfg.client_id), nullptr, &shadow_client));
+    ESP_ERROR_CHECK(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_ANY, shadow_event_handler, nullptr));
 }
 
 static void setup_wifi()
