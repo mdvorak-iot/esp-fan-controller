@@ -258,10 +258,9 @@ static void shadow_event_handler_state(__unused void *handler_args, __unused esp
                                        __unused int32_t event_id, void *event_data)
 {
     auto *event = (const aws_iot_shadow_event_data_t *)event_data;
-    auto *state = event->state;
 
     bool changed = false;
-    ESP_ERROR_CHECK_WITHOUT_ABORT(app_config_update_from(&app_config, state->data, &changed, state->to_report));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(app_config_update_from(&app_config, event->state->data, &changed, event->state->to_report));
 
     // Persist
     if (changed)
