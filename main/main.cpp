@@ -29,7 +29,7 @@ const auto SENSORS_RMT_CHANNEL_RX = RMT_CHANNEL_1;
 // Configuration
 static bool reconfigure = false;
 static bool mqtt_started = false;
-static app_config_t app_config = {};
+static app_config_t app_config = APP_CONFIG_INITIALIZE();
 static esp_mqtt_client_handle_t mqtt_client = nullptr;
 static aws_iot_shadow_handle_t shadow_client = nullptr;
 static owb_rmt_driver_info owb_driver = {};
@@ -95,14 +95,10 @@ static void setup_init()
     if (err != ESP_OK)
     {
         ESP_LOGW(TAG, "failed to load app_config, using defaults");
-        app_config.status_led_pin = (gpio_num_t)(STATUS_LED_DEFAULT_GPIO);
-        app_config.status_led_on_state = STATUS_LED_DEFAULT_ON;
-        // TODO from Kconfig
-        app_config.pwm_pin = GPIO_NUM_2;
-        app_config.pwm_inverted_duty = true;
-        app_config.sensors_pin = GPIO_NUM_15;
-        // TODO other defaults
     }
+
+    for (size_t i = 0; i < APP_CONFIG_RPM_MAX_LENGTH; i++)
+        ESP_LOGI(TAG, "rpm_pin[%zu] = %d", i, app_config.rpm_pins[i]);
 
     // Status LED (custom STATUS_LED_DEFAULT init)
     ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_create(app_config.status_led_pin, app_config.status_led_on_state, &STATUS_LED_DEFAULT));
@@ -237,21 +233,23 @@ static void mqtt_event_handler(__unused void *handler_args, __unused esp_event_b
     }
 }
 
-inline int cJSON_GetIntValue_(const cJSON *object, const char *key, int default_value)
+static void shadow_event_handler_get_accepted(__unused void *handler_args, __unused esp_event_base_t event_base,
+                                              __unused int32_t event_id, void *event_data)
 {
-    cJSON *value = cJSON_GetObjectItemCaseSensitive(object, key);
-    return cJSON_IsNumber(value) ? value->valueint : default_value;
-}
+    auto *event = (const aws_iot_shadow_event_data_t *)event_data;
 
-static bool is_pin_valid(int pin)
-{
-    return pin >= 0 && pin < GPIO_NUM_MAX;
-}
+    cJSON *desired = cJSON_Duplicate(event->desired, true);
+    if (desired)
+    {
+        // TODO log error
+        if (app_config_write_to(&app_config, desired) == ESP_OK)
+        {
+            // TODO log error
+            aws_iot_shadow_request_update_desired(event->handle, desired, nullptr);
+        }
 
-static bool is_pin_used(int pin)
-{
-    // TODO
-    return false;
+        cJSON_Delete(desired);
+    }
 }
 
 static void shadow_event_handler_state(__unused void *handler_args, __unused esp_event_base_t event_base,
@@ -301,6 +299,7 @@ static void setup_aws()
 
     // Shadow
     ESP_ERROR_CHECK(aws_iot_shadow_init(mqtt_client, aws_iot_shadow_thing_name(mqtt_cfg.client_id), nullptr, &shadow_client));
+    ESP_ERROR_CHECK(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_GET_ACCEPTED, shadow_event_handler_get_accepted, nullptr));
     ESP_ERROR_CHECK(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_STATE, shadow_event_handler_state, nullptr));
     ESP_ERROR_CHECK(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_ERROR, shadow_event_handler_error, nullptr));
 }
@@ -347,16 +346,12 @@ esp_err_t root_handler_get(httpd_req_t *req)
 
 static void setup_final()
 {
+    // TODO print whole config json here
+
     // HTTP Server
     ESP_ERROR_CHECK(web_server_start());
     ESP_ERROR_CHECK(web_server_register_handler("/", HTTP_GET, root_handler_get, nullptr));
     ESP_ERROR_CHECK(web_server_register_handler("/metrics", HTTP_GET, metrics_http_handler, nullptr));
-
-    // CPU temperature client
-    // if (!config.cpu_query_url.empty())
-    // {
-    //   ESP_ERROR_CHECK_WITHOUT_ABORT(cpu_temp_init(config.cpu_query_url, config.data.cpu_poll_interval_seconds * 1000));
-    // }
 
     // Ready
     esp_app_desc_t app_info = {};

@@ -22,13 +22,15 @@ extern "C" {
  */
 #define APP_CONFIG_MAX_NAME_LENGHT 33
 
-struct __packed app_config_sensor_t
+typedef struct __packed app_config_sensor
 {
     uint64_t address;
     char name[APP_CONFIG_MAX_NAME_LENGHT];
-};
+} app_config_sensor_t;
 
-struct __packed app_config_t
+// TODO init defaults
+
+typedef struct app_config
 {
     gpio_num_t status_led_pin;
     bool status_led_on_state;
@@ -42,16 +44,41 @@ struct __packed app_config_t
     uint8_t high_threshold_celsius;
     uint8_t low_threshold_duty_percent;
     uint8_t high_threshold_duty_percent;
-};
+} app_config_t;
 
 esp_err_t app_config_load(app_config_t *cfg);
 
 esp_err_t app_config_store(const app_config_t *cfg);
 
-esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *desired, bool *changed, cJSON *reported);
+esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *changed, cJSON *reported);
 
-const auto APP_CONFIG_NVS_NAME = "appconfig";
-const auto APP_CONFIG_NVS_KEY_STATUS_LED_PIN = "status_led_pin";
+esp_err_t app_config_write_to(const app_config_t *cfg, cJSON *data);
+
+// TODO from Kconfig
+#define APP_CONFIG_INITIALIZE()                                  \
+    {                                                            \
+        .status_led_pin = (gpio_num_t)(STATUS_LED_DEFAULT_GPIO), \
+        .status_led_on_state = STATUS_LED_DEFAULT_ON,            \
+        .pwm_pin = GPIO_NUM_2,                                   \
+        .pwm_inverted_duty = true,                               \
+        .rpm_pins = {GPIO_NUM_32, (gpio_num_t)255},              \
+        .sensors_pin = GPIO_NUM_15,                              \
+        .primary_sensor_address = 0,                             \
+        .sensors = {},                                           \
+        .low_threshold_celsius = 0,                              \
+        .high_threshold_celsius = 0,                             \
+        .low_threshold_duty_percent = 0,                         \
+        .high_threshold_duty_percent = 0,                        \
+    }
+
+#define APP_CONFIG_NVS_NAME "app_config"
+#define APP_CONFIG_KEY_STATUS_LED_PIN "status_led_pin"
+#define APP_CONFIG_KEY_STATUS_LED_ON_STATE "status_led_on_state"
+#define APP_CONFIG_KEY_STATUS_LED_ON_STATE_SHORT "status_led_on" // full key name is too long
+#define APP_CONFIG_KEY_PWM_PIN "pwm_pin"
+#define APP_CONFIG_KEY_PWM_INVERTED_DUTY "pwm_inverted_duty"
+#define APP_CONFIG_KEY_PWM_INVERTED_DUTY_SHORT "pwm_inverted"
+#define APP_CONFIG_KEY_SENSORS_PIN "sensors_pin"
 
 #ifdef __cplusplus
 }
