@@ -275,7 +275,7 @@ static void shadow_event_handler(__unused void *handler_args, __unused esp_event
 {
     auto *event = (aws_shadow_event_data_t *)event_data;
 
-    if (event->event_id == AWS_SHADOW_EVENT_UPDATE_ACCEPTED || event->event_id == AWS_SHADOW_EVENT_UPDATE_DELTA)
+    if (event->event_id == AWS_SHADOW_EVENT_GET_ACCEPTED || event->event_id == AWS_SHADOW_EVENT_UPDATE_ACCEPTED || event->event_id == AWS_SHADOW_EVENT_UPDATE_DELTA)
     {
         cJSON *reported = cJSON_CreateObject();
 
