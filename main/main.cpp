@@ -79,6 +79,10 @@ static void do_restart(__unused void *p)
 
 static void setup_init()
 {
+    // TODO when debug all, lock error is fired, debug why, same as https://github.com/espressif/esp-idf/issues/6091
+    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("aws_iot_shadow", ESP_LOG_DEBUG);
+
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
