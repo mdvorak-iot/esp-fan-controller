@@ -53,9 +53,8 @@ inline static bool is_pin_used(const app_config_t *cfg, gpio_num_t pin)
     return false;
 }
 
-static void json_helper_get_gpio_num(char *key, const cJSON *desired, bool *changed, cJSON *reported, const app_config_t *cfg, gpio_num_t *out_value)
+static bool json_helper_obj_gpio_num(const cJSON *value_obj, bool *changed, const app_config_t *cfg, gpio_num_t *out_value)
 {
-    cJSON *value_obj = cJSON_GetObjectItemCaseSensitive(desired, key);
     if (cJSON_IsNumber(value_obj) && is_valid_gpio_num(value_obj->valueint))
     {
         if (*out_value != (gpio_num_t)value_obj->valueint)
@@ -64,17 +63,59 @@ static void json_helper_get_gpio_num(char *key, const cJSON *desired, bool *chan
             if (is_pin_used(cfg, (gpio_num_t)value_obj->valueint))
             {
                 // Don't store or report incompatible value
-                return;
+                return false;
             }
 
             // Value changed
-            *out_value = (gpio_num_t)value_obj->valueint;
             *changed = true;
+            *out_value = (gpio_num_t)value_obj->valueint;
         }
-        if (reported)
+
+        return true; // this value is valid
+    }
+
+    return false; // invalid value
+}
+
+inline static void json_helper_get_gpio_num(char *key, const cJSON *desired, bool *changed, cJSON *reported, const app_config_t *cfg, gpio_num_t *out_value)
+{
+    cJSON *value_obj = cJSON_GetObjectItemCaseSensitive(desired, key);
+    bool value_valid = json_helper_obj_gpio_num(value_obj, changed, cfg, out_value);
+    if (value_valid && reported)
+    {
+        // Report, regardless whether value has changed
+        cJSON_AddNumberToObject(reported, key, *out_value);
+    }
+}
+
+static void json_helper_get_gpio_num_array(char *key, const cJSON *desired, bool *changed, cJSON *reported, const app_config_t *cfg, gpio_num_t *out_value, size_t out_value_len)
+{
+    cJSON *array_obj = cJSON_GetObjectItemCaseSensitive(desired, key);
+    if (cJSON_IsArray(array_obj))
+    {
+        bool any_valid = false;
+        int array_len = cJSON_GetArraySize(array_obj);
+        for (size_t i = 0; i < out_value_len; i++)
+        {
+            if (i < array_len)
+            {
+                // Reset to false if any pin is invalid
+                any_valid |= json_helper_obj_gpio_num(cJSON_GetArrayItem(array_obj, i), changed, cfg, &out_value[i]);
+            }
+            else
+            {
+                out_value[i] = GPIO_NUM_NC;
+            }
+        }
+        // Report if any have changed
+        if (any_valid && reported)
         {
             // Report, regardless whether value has changed
-            cJSON_AddNumberToObject(reported, key, *out_value);
+            cJSON *reported_array = cJSON_AddArrayToObject(reported, key);
+            for (size_t i = 0; i < out_value_len; i++)
+            {
+                cJSON_AddItemToArray(reported_array, cJSON_CreateNumber(out_value[i]));
+            }
         }
     }
 }
@@ -152,9 +193,10 @@ esp_err_t app_config_load(app_config_t *cfg)
 
     // Load
     nvs_helper_get_gpio_num(handle, APP_CONFIG_KEY_STATUS_LED_PIN, &cfg->status_led_pin);
-    nvs_helper_get_bool(handle, APP_CONFIG_KEY_STATUS_LED_ON_STATE_SHORT, &cfg->status_led_on_state);
+    nvs_helper_get_bool(handle, APP_CONFIG_KEY_STATUS_LED_ON_STATE, &cfg->status_led_on_state);
     nvs_helper_get_gpio_num(handle, APP_CONFIG_KEY_PWM_PIN, &cfg->pwm_pin);
-    nvs_helper_get_bool(handle, APP_CONFIG_KEY_PWM_INVERTED_DUTY_SHORT, &cfg->pwm_inverted_duty);
+    nvs_helper_get_bool(handle, APP_CONFIG_KEY_PWM_INVERTED_DUTY, &cfg->pwm_inverted_duty);
+    // TODO rpm_pins
     nvs_helper_get_gpio_num(handle, APP_CONFIG_KEY_SENSORS_PIN, &cfg->sensors_pin);
 
     // Close and exit
@@ -179,9 +221,10 @@ esp_err_t app_config_store(const app_config_t *cfg)
 
     // Store
     HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_STATUS_LED_PIN, cfg->status_led_pin), goto exit);
-    HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_STATUS_LED_ON_STATE_SHORT, cfg->status_led_on_state), goto exit);
+    HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_STATUS_LED_ON_STATE, cfg->status_led_on_state), goto exit);
     HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_PWM_PIN, cfg->pwm_pin), goto exit);
-    HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_PWM_INVERTED_DUTY_SHORT, cfg->pwm_inverted_duty), goto exit);
+    HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_PWM_INVERTED_DUTY, cfg->pwm_inverted_duty), goto exit);
+    // TODO rpm_pins
     HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_SENSORS_PIN, cfg->sensors_pin), goto exit);
 
     // Commit
@@ -204,6 +247,7 @@ esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *cha
     json_helper_get_bool(APP_CONFIG_KEY_STATUS_LED_ON_STATE, data, changed, reported, &cfg->status_led_on_state);
     json_helper_get_gpio_num(APP_CONFIG_KEY_PWM_PIN, data, changed, reported, cfg, &cfg->pwm_pin);
     json_helper_get_bool(APP_CONFIG_KEY_PWM_INVERTED_DUTY, data, changed, reported, &cfg->pwm_inverted_duty);
+    json_helper_get_gpio_num_array(APP_CONFIG_KEY_RPM_PINS, data, changed, reported, cfg, cfg->rpm_pins, APP_CONFIG_RPM_MAX_LENGTH);
     json_helper_get_gpio_num(APP_CONFIG_KEY_SENSORS_PIN, data, changed, reported, cfg, &cfg->sensors_pin);
 
     return ESP_OK;
@@ -220,6 +264,23 @@ esp_err_t app_config_write_to(const app_config_t *cfg, cJSON *data)
     cJSON_AddBoolToObject(data, APP_CONFIG_KEY_STATUS_LED_ON_STATE, cfg->status_led_on_state);
     cJSON_AddNumberToObject(data, APP_CONFIG_KEY_PWM_PIN, cfg->pwm_pin);
     cJSON_AddBoolToObject(data, APP_CONFIG_KEY_PWM_INVERTED_DUTY, cfg->pwm_inverted_duty);
+
+    // Note: trim array, don't report NC pins at the end
+    size_t rpm_pins_actual_len = 0;
+    for (size_t l = APP_CONFIG_RPM_MAX_LENGTH; l > 0; l--)
+    {
+        if (cfg->rpm_pins[l - 1] != GPIO_NUM_NC)
+        {
+            rpm_pins_actual_len = l;
+            break;
+        }
+    }
+    cJSON *rpm_pins_array = cJSON_AddArrayToObject(data, APP_CONFIG_KEY_RPM_PINS);
+    for (size_t i = 0; i < rpm_pins_actual_len; i++)
+    {
+        cJSON_AddItemToArray(rpm_pins_array, cJSON_CreateNumber(cfg->rpm_pins[i]));
+    }
+
     cJSON_AddNumberToObject(data, APP_CONFIG_KEY_SENSORS_PIN, cfg->sensors_pin);
 
     return ESP_OK;
