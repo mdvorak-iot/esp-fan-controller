@@ -159,6 +159,20 @@ static void json_helper_get_u8(char *key, const cJSON *desired, bool *changed, c
     }
 }
 
+static size_t json_helper_gpio_num_count(const gpio_num_t *pins, size_t pin_len)
+{
+    size_t actual_len = 0;
+    for (size_t l = pin_len; l > 0; l--)
+    {
+        if (pins[l - 1] != GPIO_NUM_NC)
+        {
+            actual_len = l;
+            break;
+        }
+    }
+    return actual_len;
+}
+
 void app_config_init_defaults(app_config_t *cfg)
 {
     cfg->status_led_pin = GPIO_NUM_NC;
@@ -219,13 +233,20 @@ esp_err_t app_config_store(const app_config_t *cfg)
         return err;
     }
 
+    // Prepare data
+    int8_t rpm_pins[APP_CONFIG_RPM_MAX_LENGTH];
+    for (size_t i = 0; i < APP_CONFIG_RPM_MAX_LENGTH; i++)
+    {
+        rpm_pins[i] = cfg->rpm_pins[i];
+    }
+
     // Store
-    HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_STATUS_LED_PIN, cfg->status_led_pin), goto exit);
+    HANDLE_ERROR(err = nvs_set_i8(handle, APP_CONFIG_KEY_STATUS_LED_PIN, cfg->status_led_pin), goto exit);
     HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_STATUS_LED_ON_STATE, cfg->status_led_on_state), goto exit);
-    HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_PWM_PIN, cfg->pwm_pin), goto exit);
+    HANDLE_ERROR(err = nvs_set_i8(handle, APP_CONFIG_KEY_PWM_PIN, cfg->pwm_pin), goto exit);
     HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_PWM_INVERTED_DUTY, cfg->pwm_inverted_duty), goto exit);
-    // TODO rpm_pins
-    HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_SENSORS_PIN, cfg->sensors_pin), goto exit);
+    HANDLE_ERROR(err = nvs_set_blob(handle, APP_CONFIG_KEY_RPM_PINS, rpm_pins, sizeof(rpm_pins)), goto exit);
+    HANDLE_ERROR(err = nvs_set_i8(handle, APP_CONFIG_KEY_SENSORS_PIN, cfg->sensors_pin), goto exit);
 
     // Commit
     err = nvs_commit(handle);
@@ -260,21 +281,14 @@ esp_err_t app_config_write_to(const app_config_t *cfg, cJSON *data)
         return ESP_ERR_INVALID_ARG;
     }
 
+    // Set data
     cJSON_AddNumberToObject(data, APP_CONFIG_KEY_STATUS_LED_PIN, cfg->status_led_pin);
     cJSON_AddBoolToObject(data, APP_CONFIG_KEY_STATUS_LED_ON_STATE, cfg->status_led_on_state);
     cJSON_AddNumberToObject(data, APP_CONFIG_KEY_PWM_PIN, cfg->pwm_pin);
     cJSON_AddBoolToObject(data, APP_CONFIG_KEY_PWM_INVERTED_DUTY, cfg->pwm_inverted_duty);
 
-    // Note: trim array, don't report NC pins at the end
-    size_t rpm_pins_actual_len = 0;
-    for (size_t l = APP_CONFIG_RPM_MAX_LENGTH; l > 0; l--)
-    {
-        if (cfg->rpm_pins[l - 1] != GPIO_NUM_NC)
-        {
-            rpm_pins_actual_len = l;
-            break;
-        }
-    }
+    // Trim rpm_pins array, don't report NC pins at the end
+    size_t rpm_pins_actual_len = json_helper_gpio_num_count(cfg->rpm_pins, APP_CONFIG_RPM_MAX_LENGTH);
     cJSON *rpm_pins_array = cJSON_AddArrayToObject(data, APP_CONFIG_KEY_RPM_PINS);
     for (size_t i = 0; i < rpm_pins_actual_len; i++)
     {
