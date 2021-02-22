@@ -62,7 +62,17 @@ esp_err_t app_config_write_to(const app_config_t *cfg, cJSON *data);
 #define APP_CONFIG_KEY_PWM_PIN "pwm_pin"
 #define APP_CONFIG_KEY_PWM_INVERTED_DUTY "pwm_inverted_duty"
 #define APP_CONFIG_KEY_PWM_INVERTED_DUTY_SHORT "pwm_inverted"
+#define APP_CONFIG_KEY_RPM_PINS "rpm_pins"
 #define APP_CONFIG_KEY_SENSORS_PIN "sensors_pin"
+#define APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS "primary_sensor_addr"
+#define APP_CONFIG_KEY_SENSORS "sensors"
+#define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
+#define APP_CONFIG_KEY_SENSOR_NAME "name"
+#define APP_CONFIG_KEY_SENSOR_CALIBRATION "calibration"
+#define APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS "low_threshold_c"
+#define APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS "high_threshold_c"
+#define APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT "low_threshold_duty"
+#define APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT "high_threshold_duty"
 
 #ifdef __cplusplus
 }

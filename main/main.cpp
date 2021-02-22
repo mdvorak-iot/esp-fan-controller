@@ -103,9 +103,6 @@ static void setup_init()
         ESP_LOGW(TAG, "failed to load app_config, using defaults");
     }
 
-    for (size_t i = 0; i < APP_CONFIG_RPM_MAX_LENGTH; i++)
-        ESP_LOGI(TAG, "rpm_pin[%zu] = %d", i, app_config.rpm_pins[i]);
-
     // Status LED (custom STATUS_LED_DEFAULT init)
     ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_create(app_config.status_led_pin, app_config.status_led_on_state, &STATUS_LED_DEFAULT));
     ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_set_interval(STATUS_LED_DEFAULT, 500, true));
