@@ -28,6 +28,7 @@ const auto SENSORS_RMT_CHANNEL_RX = RMT_CHANNEL_1;
 static bool reconfigure = false;
 static bool mqtt_started = false;
 static app_config_t app_config = {};
+static status_led_handle_t status_led;
 static esp_mqtt_client_handle_t mqtt_client = nullptr;
 static aws_iot_shadow_handle_t shadow_client = nullptr;
 static owb_rmt_driver_info owb_driver = {};
@@ -103,9 +104,9 @@ static void setup_init()
         ESP_LOGW(TAG, "failed to load app_config, using defaults");
     }
 
-    // Status LED (custom STATUS_LED_DEFAULT init)
-    ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_create(app_config.status_led_pin, app_config.status_led_on_state, &STATUS_LED_DEFAULT));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_set_interval(STATUS_LED_DEFAULT, 500, true));
+    // Status LED
+    ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_create(app_config.status_led_pin, app_config.status_led_on_state, &status_led));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_set_interval(status_led, 500, true));
 
     // Events
     esp_event_handler_register(
@@ -113,13 +114,13 @@ static void setup_init()
             switch (event_id)
             {
             case WIFI_EVENT_STA_DISCONNECTED:
-                status_led_set_interval(STATUS_LED_DEFAULT, 500, true);
+                status_led_set_interval(status_led, 500, true);
                 break;
 
             case WIFI_EVENT_STA_WPS_ER_SUCCESS:
             case WIFI_EVENT_STA_WPS_ER_TIMEOUT:
             case WIFI_EVENT_STA_WPS_ER_FAILED:
-                status_led_set_interval(STATUS_LED_DEFAULT, 500, true);
+                status_led_set_interval(status_led, 500, true);
                 wifi_reconnect_resume();
                 break;
             default:
@@ -128,9 +129,9 @@ static void setup_init()
         },
         nullptr);
     esp_event_handler_register(
-        WPS_CONFIG_EVENT, WPS_CONFIG_EVENT_START, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval(STATUS_LED_DEFAULT, 100, true); }, nullptr);
+        WPS_CONFIG_EVENT, WPS_CONFIG_EVENT_START, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval(status_led, 100, true); }, nullptr);
     esp_event_handler_register(
-        IP_EVENT, IP_EVENT_STA_GOT_IP, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval_for(STATUS_LED_DEFAULT, 200, false, 700, false); }, nullptr);
+        IP_EVENT, IP_EVENT_STA_GOT_IP, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval_for(status_led, 200, false, 700, false); }, nullptr);
 }
 
 static void setup_fans()
@@ -372,7 +373,7 @@ _Noreturn static void run()
     TickType_t start = xTaskGetTickCount();
     for (;;)
     {
-        status_led_set_interval_for(STATUS_LED_DEFAULT, 0, true, 40, false);
+        status_led_set_interval_for(status_led, 0, true, 40, false);
 
         vTaskDelayUntil(&start, 1000 / portTICK_PERIOD_MS);
 
