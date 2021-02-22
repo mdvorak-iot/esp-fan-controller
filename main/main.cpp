@@ -249,8 +249,9 @@ static void shadow_event_handler_get_accepted(__unused void *handler_args, __unu
     cJSON *desired = cJSON_Duplicate(event->desired, true);
     if (desired)
     {
+        // Note: since we are using duplicate from original message, this does not overwrite anything already there
         // TODO log error
-        if (app_config_write_to(&app_config, desired) == ESP_OK)
+        if (app_config_add_to(&app_config, desired) == ESP_OK)
         {
             // TODO log error
             aws_iot_shadow_request_update_desired(event->handle, desired, nullptr);

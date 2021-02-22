@@ -284,7 +284,7 @@ esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *cha
     return ESP_OK;
 }
 
-esp_err_t app_config_write_to(const app_config_t *cfg, cJSON *data)
+esp_err_t app_config_add_to(const app_config_t *cfg, cJSON *data)
 {
     if (cfg == NULL || data == NULL)
     {

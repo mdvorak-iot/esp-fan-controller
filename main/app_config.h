@@ -53,7 +53,7 @@ esp_err_t app_config_store(const app_config_t *cfg);
 
 esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *changed, cJSON *reported);
 
-esp_err_t app_config_write_to(const app_config_t *cfg, cJSON *data);
+esp_err_t app_config_add_to(const app_config_t *cfg, cJSON *data);
 
 #define APP_CONFIG_NVS_NAME "app_config"
 #define APP_CONFIG_KEY_STATUS_LED_PIN "status_led_pin"
