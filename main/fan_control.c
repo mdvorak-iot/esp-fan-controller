@@ -10,6 +10,11 @@ static const uint32_t FAN_CONTROL_MAX_DUTY = (1u << FAN_CONTROL_RESOLUTION) - 1;
 
 esp_err_t fan_control_config(gpio_num_t pin, ledc_timer_t timer, ledc_channel_t channel)
 {
+    if (pin < 0 || !GPIO_IS_VALID_OUTPUT_GPIO(pin))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
     ESP_LOGI(TAG, "initializing ledc timer %d channel %d on pin %d to frequency %d with resolution %d and max duty %d", timer, channel, pin, FAN_CONTROL_FREQ_HZ, FAN_CONTROL_RESOLUTION, FAN_CONTROL_MAX_DUTY);
 
     // Timer

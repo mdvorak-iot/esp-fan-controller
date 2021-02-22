@@ -3,7 +3,7 @@ include(ExternalComponent.cmake)
 
 # Components
 ExternalComponent_Get(double_reset https://github.com/mdvorak-iot/esp-double-reset.git aef441a)
-ExternalComponent_Get(status_led https://github.com/mdvorak-iot/esp-status-led.git fac5be90)
+ExternalComponent_Get(status_led https://github.com/mdvorak-iot/esp-status-led.git 10256a32)
 ExternalComponent_Get(wps_config https://github.com/mdvorak-iot/esp-wps-config.git b0576066)
 ExternalComponent_Get(wifi_reconnect https://github.com/mdvorak-iot/esp-wifi-reconnect.git 1544945)
 ExternalComponent_Get(esp32-owb https://github.com/DavidAntliff/esp32-owb.git b2032f7)

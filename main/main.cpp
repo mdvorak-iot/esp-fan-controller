@@ -44,6 +44,12 @@ static volatile float fan_duty_percent = 0;
 
 static esp_err_t set_fan_duty(float duty_percent)
 {
+    // Ignore disabled
+    if (app_config.pwm_pin == GPIO_NUM_NC)
+    {
+        return ESP_OK;
+    }
+
     // Invert
     esp_err_t err = fan_control_set_duty(PWM_CHANNEL, app_config.pwm_inverted_duty ? 1 - duty_percent : duty_percent);
     if (err == ESP_OK)
@@ -141,8 +147,8 @@ static void setup_init()
 static void setup_fans()
 {
     // Configure fan pwm
-    ESP_ERROR_CHECK(fan_control_config(app_config.pwm_pin, PWM_TIMER, PWM_CHANNEL));
-    ESP_ERROR_CHECK(set_fan_duty(0.9));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(fan_control_config(app_config.pwm_pin, PWM_TIMER, PWM_CHANNEL));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(set_fan_duty(0.9));
 
     // Fan metrics
     metrics_register_callback([](std::ostream &m) {
@@ -156,13 +162,15 @@ static void setup_fans()
 
 static void setup_sensors()
 {
+    // TODO don't throw on error
+
     // Initialize OneWireBus
     owb_rmt_initialize(&owb_driver, app_config.sensors_pin, SENSORS_RMT_CHANNEL_TX, SENSORS_RMT_CHANNEL_RX);
     owb_use_crc(&owb_driver.bus, true);
 
     // Temperature sensors
-    ESP_ERROR_CHECK(ds18b20_group_create(&owb_driver.bus, &sensors));
-    ESP_ERROR_CHECK(ds18b20_group_find(sensors));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_create(&owb_driver.bus, &sensors));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_find(sensors));
     ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_use_crc(sensors, true));
     ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_set_resolution(sensors, DS18B20_RESOLUTION_12_BIT));
 
@@ -188,39 +196,6 @@ static void setup_sensors()
             metric_value(m, "esp_celsius").label("address", sensor_configs[i].address).label("hardware", "TODO").label("sensor", sensor_configs[i].name).is() << sensor_values_c[i] << '\n';
         }
     });
-
-    // Custom devices and other init, that needs to be done before waiting for wifi connection
-    // // Init config
-    // ESP_ERROR_CHECK(app_config_init(config));
-
-    // // Power PWM
-    // // NOTE do this ASAP
-    // if (config.data.control_pin != APP_CONFIG_PIN_DISABLED)
-    // {
-    //   ESP_ERROR_CHECK_WITHOUT_ABORT(pwm.begin(config.data.control_pin, LEDC_TIMER_0, LEDC_CHANNEL_0, PWM_FREQ, PWM_RESOLUTION, PWM_INVERTED));
-    //   ESP_ERROR_CHECK_WITHOUT_ABORT(pwm.dutyPercent(config.data.high_threshold_duty_percent / 100.0f));
-    // }
-
-    // // Init Sensors
-    // if (config.data.sensors_pin != APP_CONFIG_PIN_DISABLED)
-    // {
-    //   ESP_ERROR_CHECK_WITHOUT_ABORT(temperature_sensors_init(config.data.sensors_pin));
-    //   for (const auto &s : config.data.sensors)
-    //   {
-    //     temperature_assign_name(s.address, s.name);
-    //   }
-    // }
-
-    // // RPM
-    // for (size_t i = 0; i < APP_CONFIG_MAX_RPM; i++)
-    // {
-    //   if (config.data.rpm_pins[i] != APP_CONFIG_PIN_DISABLED)
-    //   {
-    //     ESP_ERROR_CHECK_WITHOUT_ABORT(Rpm.add(config.data.rpm_pins[i]));
-    //   }
-    // }
-
-    // ESP_ERROR_CHECK_WITHOUT_ABORT(Rpm.begin());
 }
 
 static void mqtt_event_handler(__unused void *handler_args, __unused esp_event_base_t event_base, __unused int32_t event_id, void *event_data)
@@ -294,7 +269,7 @@ static void setup_aws()
     esp_mqtt_client_config_t mqtt_cfg = {};
     mqtt_cfg.cert_pem = AWS_IOT_ROOT_CA;
     mqtt_cfg.cert_len = AWS_IOT_ROOT_CA_LEN;
-    ESP_ERROR_CHECK(aws_iot_mqtt_config_load(&mqtt_cfg));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_mqtt_config_load(&mqtt_cfg));
     ESP_LOGI(TAG, "mqtt host=%s, port=%u, client_id=%s", mqtt_cfg.host, mqtt_cfg.port, mqtt_cfg.client_id);
 
     mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
@@ -304,7 +279,7 @@ static void setup_aws()
         return;
     }
 
-    ESP_ERROR_CHECK(esp_mqtt_client_register_event(mqtt_client, MQTT_EVENT_ANY, mqtt_event_handler, nullptr));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_register_event(mqtt_client, MQTT_EVENT_ANY, mqtt_event_handler, nullptr));
 
     // Connect when WiFi connects
     esp_event_handler_instance_register(
@@ -312,10 +287,10 @@ static void setup_aws()
         nullptr, nullptr);
 
     // Shadow
-    ESP_ERROR_CHECK(aws_iot_shadow_init(mqtt_client, aws_iot_shadow_thing_name(mqtt_cfg.client_id), nullptr, &shadow_client));
-    ESP_ERROR_CHECK(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_GET_ACCEPTED, shadow_event_handler_get_accepted, nullptr));
-    ESP_ERROR_CHECK(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_STATE, shadow_event_handler_state, nullptr));
-    ESP_ERROR_CHECK(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_ERROR, shadow_event_handler_error, nullptr));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_init(mqtt_client, aws_iot_shadow_thing_name(mqtt_cfg.client_id), nullptr, &shadow_client));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_GET_ACCEPTED, shadow_event_handler_get_accepted, nullptr));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_STATE, shadow_event_handler_state, nullptr));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_ERROR, shadow_event_handler_error, nullptr));
 }
 
 static void setup_wifi()
@@ -363,9 +338,9 @@ static void setup_final()
     // TODO print whole config json here
 
     // HTTP Server
-    ESP_ERROR_CHECK(web_server_start());
-    ESP_ERROR_CHECK(web_server_register_handler("/", HTTP_GET, root_handler_get, nullptr));
-    ESP_ERROR_CHECK(web_server_register_handler("/metrics", HTTP_GET, metrics_http_handler, nullptr));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(web_server_start());
+    ESP_ERROR_CHECK_WITHOUT_ABORT(web_server_register_handler("/", HTTP_GET, root_handler_get, nullptr));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(web_server_register_handler("/metrics", HTTP_GET, metrics_http_handler, nullptr));
 
     // Ready
     esp_app_desc_t app_info = {};
