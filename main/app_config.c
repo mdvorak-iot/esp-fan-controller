@@ -108,7 +108,7 @@ static void json_helper_get_gpio_num_array(char *key, const cJSON *desired, bool
             }
         }
         // Report if any have changed
-        if (any_valid && reported)
+        if ((any_valid || array_len == 0) && reported)
         {
             // Report, regardless whether value has changed
             cJSON *reported_array = cJSON_AddArrayToObject(reported, key);
@@ -222,7 +222,7 @@ esp_err_t app_config_load(app_config_t *cfg)
         cfg->rpm_pins[i] = (gpio_num_t)rpm_pins[i];
 
     nvs_helper_get_gpio_num(handle, APP_CONFIG_KEY_SENSORS_PIN, &cfg->sensors_pin);
-    // APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS
+    nvs_get_u64(handle, APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS, &cfg->primary_sensor_address);
     //#define APP_CONFIG_KEY_SENSORS "sensors"
     //#define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
     //#define APP_CONFIG_KEY_SENSOR_NAME "name"
@@ -266,7 +266,7 @@ esp_err_t app_config_store(const app_config_t *cfg)
     HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_PWM_INVERTED_DUTY, cfg->pwm_inverted_duty), goto exit);
     HANDLE_ERROR(err = nvs_set_blob(handle, APP_CONFIG_KEY_RPM_PINS, rpm_pins, sizeof(rpm_pins)), goto exit);
     HANDLE_ERROR(err = nvs_set_i8(handle, APP_CONFIG_KEY_SENSORS_PIN, cfg->sensors_pin), goto exit);
-    // APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS
+    HANDLE_ERROR(err = nvs_set_u64(handle, APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS, cfg->primary_sensor_address), goto exit);
     //#define APP_CONFIG_KEY_SENSORS "sensors"
     //#define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
     //#define APP_CONFIG_KEY_SENSOR_NAME "name"
