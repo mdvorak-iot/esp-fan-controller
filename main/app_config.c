@@ -30,7 +30,7 @@ static void nvs_helper_get_bool(nvs_handle_t handle, const char *key, bool *out_
 
 inline static bool is_valid_gpio_num(int pin)
 {
-    return pin == GPIO_NUM_NC || (pin >= GPIO_NUM_0 && pin < GPIO_NUM_MAX);
+    return pin == GPIO_NUM_NC || GPIO_IS_VALID_GPIO(pin);
 }
 
 inline static bool is_pin_used(const app_config_t *cfg, gpio_num_t pin)
