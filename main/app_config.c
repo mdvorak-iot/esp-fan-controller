@@ -222,6 +222,15 @@ esp_err_t app_config_load(app_config_t *cfg)
         cfg->rpm_pins[i] = (gpio_num_t)rpm_pins[i];
 
     nvs_helper_get_gpio_num(handle, APP_CONFIG_KEY_SENSORS_PIN, &cfg->sensors_pin);
+    // APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS
+    //#define APP_CONFIG_KEY_SENSORS "sensors"
+    //#define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
+    //#define APP_CONFIG_KEY_SENSOR_NAME "name"
+    //#define APP_CONFIG_KEY_SENSOR_CALIBRATION "calibration"
+    nvs_get_u8(handle, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, &cfg->low_threshold_celsius);
+    nvs_get_u8(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, &cfg->high_threshold_celsius);
+    nvs_get_u8(handle, APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, &cfg->low_threshold_duty_percent);
+    nvs_get_u8(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, &cfg->high_threshold_duty_percent);
 
     // Close and exit
     nvs_close(handle);
@@ -257,6 +266,15 @@ esp_err_t app_config_store(const app_config_t *cfg)
     HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_PWM_INVERTED_DUTY, cfg->pwm_inverted_duty), goto exit);
     HANDLE_ERROR(err = nvs_set_blob(handle, APP_CONFIG_KEY_RPM_PINS, rpm_pins, sizeof(rpm_pins)), goto exit);
     HANDLE_ERROR(err = nvs_set_i8(handle, APP_CONFIG_KEY_SENSORS_PIN, cfg->sensors_pin), goto exit);
+    // APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS
+    //#define APP_CONFIG_KEY_SENSORS "sensors"
+    //#define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
+    //#define APP_CONFIG_KEY_SENSOR_NAME "name"
+    //#define APP_CONFIG_KEY_SENSOR_CALIBRATION "calibration"
+    HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, cfg->low_threshold_celsius), goto exit);
+    HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, cfg->high_threshold_celsius), goto exit);
+    HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, cfg->low_threshold_duty_percent), goto exit);
+    HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, cfg->high_threshold_duty_percent), goto exit);
 
     // Commit
     err = nvs_commit(handle);
@@ -280,6 +298,15 @@ esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *cha
     json_helper_get_bool(APP_CONFIG_KEY_PWM_INVERTED_DUTY, data, changed, reported, &cfg->pwm_inverted_duty);
     json_helper_get_gpio_num_array(APP_CONFIG_KEY_RPM_PINS, data, changed, reported, cfg, cfg->rpm_pins, APP_CONFIG_RPM_MAX_LENGTH);
     json_helper_get_gpio_num(APP_CONFIG_KEY_SENSORS_PIN, data, changed, reported, cfg, &cfg->sensors_pin);
+    // APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS
+    //#define APP_CONFIG_KEY_SENSORS "sensors"
+    //#define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
+    //#define APP_CONFIG_KEY_SENSOR_NAME "name"
+    //#define APP_CONFIG_KEY_SENSOR_CALIBRATION "calibration"
+    json_helper_get_u8(APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, data, changed, reported, &cfg->low_threshold_celsius);
+    json_helper_get_u8(APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, data, changed, reported, &cfg->high_threshold_celsius);
+    json_helper_get_u8(APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, data, changed, reported, &cfg->low_threshold_duty_percent);
+    json_helper_get_u8(APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, data, changed, reported, &cfg->high_threshold_duty_percent);
 
     return ESP_OK;
 }
@@ -306,6 +333,15 @@ esp_err_t app_config_add_to(const app_config_t *cfg, cJSON *data)
     }
 
     cJSON_AddNumberToObject(data, APP_CONFIG_KEY_SENSORS_PIN, cfg->sensors_pin);
+    // APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS
+    //#define APP_CONFIG_KEY_SENSORS "sensors"
+    //#define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
+    //#define APP_CONFIG_KEY_SENSOR_NAME "name"
+    //#define APP_CONFIG_KEY_SENSOR_CALIBRATION "calibration"
+    cJSON_AddNumberToObject(data, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, cfg->low_threshold_celsius);
+    cJSON_AddNumberToObject(data, APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, cfg->high_threshold_celsius);
+    cJSON_AddNumberToObject(data, APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, cfg->low_threshold_duty_percent);
+    cJSON_AddNumberToObject(data, APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, cfg->high_threshold_duty_percent);
 
     return ESP_OK;
 }
