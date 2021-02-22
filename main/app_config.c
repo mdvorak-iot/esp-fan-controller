@@ -205,12 +205,22 @@ esp_err_t app_config_load(app_config_t *cfg)
         return err;
     }
 
+    // Prepare rpm_pins NC array
+    size_t rpm_pins_len = APP_CONFIG_RPM_MAX_LENGTH;
+    int8_t rpm_pins[APP_CONFIG_RPM_MAX_LENGTH];
+    for (size_t i = 0; i < APP_CONFIG_RPM_MAX_LENGTH; i++)
+        rpm_pins[i] = GPIO_NUM_NC;
+
     // Load
     nvs_helper_get_gpio_num(handle, APP_CONFIG_KEY_STATUS_LED_PIN, &cfg->status_led_pin);
     nvs_helper_get_bool(handle, APP_CONFIG_KEY_STATUS_LED_ON_STATE, &cfg->status_led_on_state);
     nvs_helper_get_gpio_num(handle, APP_CONFIG_KEY_PWM_PIN, &cfg->pwm_pin);
     nvs_helper_get_bool(handle, APP_CONFIG_KEY_PWM_INVERTED_DUTY, &cfg->pwm_inverted_duty);
-    // TODO rpm_pins
+
+    nvs_get_blob(handle, APP_CONFIG_KEY_RPM_PINS, rpm_pins, &rpm_pins_len);
+    for (size_t i = 0; i < APP_CONFIG_RPM_MAX_LENGTH; i++)
+        cfg->rpm_pins[i] = (gpio_num_t)rpm_pins[i];
+
     nvs_helper_get_gpio_num(handle, APP_CONFIG_KEY_SENSORS_PIN, &cfg->sensors_pin);
 
     // Close and exit
