@@ -1,7 +1,7 @@
-menu "Application config"
-    config APP_CONFIG_MQTT_BUFFER_SIZE
-        int "MQTT receive buffer size"
-        default 2048
-        help
-            Whole sent and received json must fit into this buffer.
-endmenu
+#menu "Application config"
+#    config APP_CONFIG_TODO
+#        int "TODO"
+#        default 0
+#        help
+#            TODO
+#endmenu
