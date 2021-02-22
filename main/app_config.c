@@ -88,6 +88,20 @@ inline static void json_helper_get_gpio_num(char *key, const cJSON *desired, boo
     }
 }
 
+static size_t json_helper_gpio_num_count(const gpio_num_t *pins, size_t pin_len)
+{
+    size_t actual_len = 0;
+    for (size_t l = pin_len; l > 0; l--)
+    {
+        if (pins[l - 1] != GPIO_NUM_NC)
+        {
+            actual_len = l;
+            break;
+        }
+    }
+    return actual_len;
+}
+
 static void json_helper_get_gpio_num_array(char *key, const cJSON *desired, bool *changed, cJSON *reported, const app_config_t *cfg, gpio_num_t *out_value, size_t out_value_len)
 {
     cJSON *array_obj = cJSON_GetObjectItemCaseSensitive(desired, key);
@@ -112,7 +126,9 @@ static void json_helper_get_gpio_num_array(char *key, const cJSON *desired, bool
         {
             // Report, regardless whether value has changed
             cJSON *reported_array = cJSON_AddArrayToObject(reported, key);
-            for (size_t i = 0; i < out_value_len; i++)
+            // Trim the array, don't report NC pins at the end
+            size_t reported_actual_len = json_helper_gpio_num_count(out_value, out_value_len);
+            for (size_t i = 0; i < reported_actual_len; i++)
             {
                 cJSON_AddItemToArray(reported_array, cJSON_CreateNumber(out_value[i]));
             }
@@ -157,20 +173,6 @@ static void json_helper_get_u8(char *key, const cJSON *desired, bool *changed, c
             cJSON_AddNumberToObject(reported, key, *out_value);
         }
     }
-}
-
-static size_t json_helper_gpio_num_count(const gpio_num_t *pins, size_t pin_len)
-{
-    size_t actual_len = 0;
-    for (size_t l = pin_len; l > 0; l--)
-    {
-        if (pins[l - 1] != GPIO_NUM_NC)
-        {
-            actual_len = l;
-            break;
-        }
-    }
-    return actual_len;
 }
 
 void app_config_init_defaults(app_config_t *cfg)
@@ -324,7 +326,7 @@ esp_err_t app_config_add_to(const app_config_t *cfg, cJSON *data)
     cJSON_AddNumberToObject(data, APP_CONFIG_KEY_PWM_PIN, cfg->pwm_pin);
     cJSON_AddBoolToObject(data, APP_CONFIG_KEY_PWM_INVERTED_DUTY, cfg->pwm_inverted_duty);
 
-    // Trim rpm_pins array, don't report NC pins at the end
+    // Trim the array, don't report NC pins at the end
     size_t rpm_pins_actual_len = json_helper_gpio_num_count(cfg->rpm_pins, APP_CONFIG_RPM_MAX_LENGTH);
     cJSON *rpm_pins_array = cJSON_AddArrayToObject(data, APP_CONFIG_KEY_RPM_PINS);
     for (size_t i = 0; i < rpm_pins_actual_len; i++)
