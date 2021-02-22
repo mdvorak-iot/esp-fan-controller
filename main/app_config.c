@@ -71,7 +71,7 @@ static void json_helper_get_gpio_num(char *key, const cJSON *desired, bool *chan
             *out_value = (gpio_num_t)value_obj->valueint;
             *changed = true;
         }
-        if (desired)
+        if (reported)
         {
             // Report, regardless whether value has changed
             cJSON_AddNumberToObject(reported, key, *out_value);
@@ -91,7 +91,7 @@ static void json_helper_get_bool(char *key, const cJSON *desired, bool *changed,
             *out_value = value_bool;
             *changed = true;
         }
-        if (desired)
+        if (reported)
         {
             // Report, regardless whether value has changed
             cJSON_AddBoolToObject(reported, key, *out_value);
@@ -110,7 +110,7 @@ static void json_helper_get_u8(char *key, const cJSON *desired, bool *changed, c
             *out_value = (uint8_t)value_obj->valueint;
             *changed = true;
         }
-        if (desired)
+        if (reported)
         {
             // Report, regardless whether value has changed
             cJSON_AddNumberToObject(reported, key, *out_value);
