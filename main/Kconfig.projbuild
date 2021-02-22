@@ -1,5 +1,7 @@
 menu "Application config"
-    config DS18B20_GPIO
-        int "Temperature sensor DS18B20 pin"
-        default 15
+    config APP_CONFIG_MQTT_BUFFER_SIZE
+        int "MQTT receive buffer size"
+        default 2048
+        help
+            Whole sent and received json must fit into this buffer.
 endmenu

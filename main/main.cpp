@@ -23,6 +23,7 @@ const auto PWM_TIMER = LEDC_TIMER_0;
 const auto PWM_CHANNEL = LEDC_CHANNEL_0;
 const auto SENSORS_RMT_CHANNEL_TX = RMT_CHANNEL_0;
 const auto SENSORS_RMT_CHANNEL_RX = RMT_CHANNEL_1;
+const auto APP_CONFIG_MQTT_BUFFER_SIZE = CONFIG_APP_CONFIG_MQTT_BUFFER_SIZE;
 
 // Configuration
 static bool reconfigure = false;
@@ -292,6 +293,7 @@ static void setup_aws()
 {
     // MQTT
     esp_mqtt_client_config_t mqtt_cfg = {};
+    mqtt_cfg.buffer_size = APP_CONFIG_MQTT_BUFFER_SIZE; // partial message processing is not supported, make sure whole shadow json fits in mqtt buffer
     mqtt_cfg.cert_pem = AWS_IOT_ROOT_CA;
     mqtt_cfg.cert_len = AWS_IOT_ROOT_CA_LEN;
     ESP_ERROR_CHECK(aws_iot_mqtt_config_load(&mqtt_cfg));
