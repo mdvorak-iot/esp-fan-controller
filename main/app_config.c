@@ -1,6 +1,7 @@
 #include "app_config.h"
 #include <esp_log.h>
 #include <nvs.h>
+#include <string.h>
 
 #define HANDLE_ERROR(expr, action)  \
     {                               \
@@ -18,31 +19,42 @@ static void nvs_helper_get_gpio_num(nvs_handle_t handle, const char *key, gpio_n
     }
 }
 
-inline static bool validate_pin(const app_config_t *cfg, gpio_num_t pin)
+inline static bool is_valid_gpio_num(int pin)
 {
-    if (cfg->status_led_pin == pin) return false;
-    if (cfg->pwm_pin == pin) return false;
-    if (cfg->sensors_pin == pin) return false;
+    return pin == GPIO_NUM_NC || (pin >= GPIO_NUM_0 && pin < GPIO_NUM_MAX);
+}
+
+inline static bool is_pin_used(const app_config_t *cfg, gpio_num_t pin)
+{
+    // NC is special case, it is always "free"
+    if (pin == GPIO_NUM_NC)
+    {
+        return false;
+    }
+
+    if (cfg->status_led_pin == pin) return true;
+    if (cfg->pwm_pin == pin) return true;
+    if (cfg->sensors_pin == pin) return true;
 
     for (size_t i = 0; i < APP_CONFIG_RPM_MAX_LENGTH; i++)
     {
-        if (cfg->rpm_pins[i] == pin) return false;
+        if (cfg->rpm_pins[i] == pin) return true;
     }
 
-    return true;
+    return false;
 }
 
 static void json_helper_get_gpio_num(char *key, const cJSON *desired, bool *changed, cJSON *reported, const app_config_t *cfg, gpio_num_t *out_value)
 {
     cJSON *value_obj = cJSON_GetObjectItemCaseSensitive(desired, key);
-    if (cJSON_IsNumber(value_obj) && value_obj->valueint > 0 && value_obj->valueint < GPIO_NUM_MAX)
+    if (cJSON_IsNumber(value_obj) && is_valid_gpio_num(value_obj->valueint))
     {
         if (*out_value != (gpio_num_t)value_obj->valueint)
         {
             // Validate - this must be called only if change is detected
-            if (!validate_pin(cfg, (gpio_num_t)value_obj->valueint))
+            if (is_pin_used(cfg, (gpio_num_t)value_obj->valueint))
             {
-                // Don't store or report invalid value
+                // Don't store or report incompatible value
                 return;
             }
 
@@ -75,6 +87,23 @@ static void json_helper_get_u8(char *key, const cJSON *desired, bool *changed, c
             cJSON_AddNumberToObject(reported, key, *out_value);
         }
     }
+}
+
+void app_config_init_defaults(app_config_t *cfg)
+{
+    cfg->status_led_pin = GPIO_NUM_NC;
+    cfg->status_led_on_state = true;
+    cfg->pwm_pin = GPIO_NUM_NC;
+    cfg->pwm_inverted_duty = true;
+    for (size_t i = 0; i < APP_CONFIG_RPM_MAX_LENGTH; i++)
+        cfg->rpm_pins[i] = GPIO_NUM_NC;
+    cfg->sensors_pin = GPIO_NUM_NC;
+    cfg->primary_sensor_address = 0;
+    memset(cfg->sensors, 0, sizeof(cfg->sensors));
+    cfg->low_threshold_celsius = 0;
+    cfg->high_threshold_celsius = 100;
+    cfg->low_threshold_duty_percent = 0;
+    cfg->high_threshold_duty_percent = 100;
 }
 
 esp_err_t app_config_load(app_config_t *cfg)

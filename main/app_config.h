@@ -26,9 +26,8 @@ typedef struct __packed app_config_sensor
 {
     uint64_t address;
     char name[APP_CONFIG_MAX_NAME_LENGHT];
+    float calibration;
 } app_config_sensor_t;
-
-// TODO init defaults
 
 typedef struct app_config
 {
@@ -46,6 +45,8 @@ typedef struct app_config
     uint8_t high_threshold_duty_percent;
 } app_config_t;
 
+void app_config_init_defaults(app_config_t *cfg);
+
 esp_err_t app_config_load(app_config_t *cfg);
 
 esp_err_t app_config_store(const app_config_t *cfg);
@@ -53,23 +54,6 @@ esp_err_t app_config_store(const app_config_t *cfg);
 esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *changed, cJSON *reported);
 
 esp_err_t app_config_write_to(const app_config_t *cfg, cJSON *data);
-
-// TODO from Kconfig
-#define APP_CONFIG_INITIALIZE()                                  \
-    {                                                            \
-        .status_led_pin = (gpio_num_t)(STATUS_LED_DEFAULT_GPIO), \
-        .status_led_on_state = STATUS_LED_DEFAULT_ON,            \
-        .pwm_pin = GPIO_NUM_2,                                   \
-        .pwm_inverted_duty = true,                               \
-        .rpm_pins = {GPIO_NUM_32, (gpio_num_t)255},              \
-        .sensors_pin = GPIO_NUM_15,                              \
-        .primary_sensor_address = 0,                             \
-        .sensors = {},                                           \
-        .low_threshold_celsius = 0,                              \
-        .high_threshold_celsius = 0,                             \
-        .low_threshold_duty_percent = 0,                         \
-        .high_threshold_duty_percent = 0,                        \
-    }
 
 #define APP_CONFIG_NVS_NAME "app_config"
 #define APP_CONFIG_KEY_STATUS_LED_PIN "status_led_pin"

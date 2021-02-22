@@ -27,7 +27,7 @@ const auto SENSORS_RMT_CHANNEL_RX = RMT_CHANNEL_1;
 // Configuration
 static bool reconfigure = false;
 static bool mqtt_started = false;
-static app_config_t app_config = APP_CONFIG_INITIALIZE();
+static app_config_t app_config = {};
 static esp_mqtt_client_handle_t mqtt_client = nullptr;
 static aws_iot_shadow_handle_t shadow_client = nullptr;
 static owb_rmt_driver_info owb_driver = {};
@@ -96,6 +96,7 @@ static void setup_init()
     ESP_ERROR_CHECK(double_reset_start(&reconfigure, DOUBLE_RESET_DEFAULT_TIMEOUT));
 
     // Load app_config
+    app_config_init_defaults(&app_config);
     err = app_config_load(&app_config);
     if (err != ESP_OK)
     {
