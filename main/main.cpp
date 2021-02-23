@@ -316,7 +316,7 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
 cleanup:
     // Cleanup
     cJSON_Delete(to_desire);
-    cJSON_Delete(to_desire);
+    cJSON_Delete(to_report);
 }
 
 static void shadow_event_handler_error(__unused void *handler_args, __unused esp_event_base_t event_base,
