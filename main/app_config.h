@@ -67,6 +67,7 @@ esp_err_t app_config_add_to(const app_config_t *cfg, cJSON *data);
 #define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
 #define APP_CONFIG_KEY_SENSOR_NAME "name"
 #define APP_CONFIG_KEY_SENSOR_CALIBRATION "calibration"
+#define APP_CONFIG_KEY_SENSOR_CALIBRATION_SHORT "cal"
 #define APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS "lo_thresh_c"
 #define APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS "hi_thresh_c"
 #define APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT "lo_thresh_duty"

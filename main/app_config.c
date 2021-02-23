@@ -3,6 +3,8 @@
 #include <nvs.h>
 #include <string.h>
 
+static const char TAG[] = "app_config";
+
 #define HANDLE_ERROR(expr, action)  \
     {                               \
         esp_err_t err_ = (expr);    \
@@ -10,7 +12,22 @@
     }                               \
     (void)0
 
+#define HANDLE_ERROR_ERASE(expr, action)                             \
+    {                                                                \
+        esp_err_t err_ = (expr);                                     \
+        if (err_ != ESP_OK && err_ != ESP_ERR_NVS_NOT_FOUND) action; \
+    }                                                                \
+    (void)0
+
 static const float CELSIUS_PRECISION = 100;
+static const float CALIBRATION_PRECISION = 1000;
+
+static char *nvs_helper_indexed_key(char *buf, size_t buf_len, const char *format, size_t index)
+{
+    int c = snprintf(buf, buf_len, format, index);
+    assert(c >= 0 && c < buf_len);
+    return buf;
+}
 
 static void nvs_helper_get_gpio_num(nvs_handle_t handle, const char *key, gpio_num_t *out_value)
 {
@@ -210,11 +227,13 @@ esp_err_t app_config_load(app_config_t *cfg)
         return err;
     }
 
-    // Prepare rpm_pins NC array
+    // Prepare
     size_t rpm_pins_len = APP_CONFIG_RPM_MAX_LENGTH;
     int8_t rpm_pins[APP_CONFIG_RPM_MAX_LENGTH];
     for (size_t i = 0; i < APP_CONFIG_RPM_MAX_LENGTH; i++)
         rpm_pins[i] = GPIO_NUM_NC;
+
+    char key_buf[16] = {}; // max 15 chars
 
     // Load
     nvs_helper_get_gpio_num(handle, APP_CONFIG_KEY_STATUS_LED_PIN, &cfg->status_led_pin);
@@ -228,10 +247,15 @@ esp_err_t app_config_load(app_config_t *cfg)
 
     nvs_helper_get_gpio_num(handle, APP_CONFIG_KEY_SENSORS_PIN, &cfg->sensors_pin);
     nvs_get_u64(handle, APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS, &cfg->primary_sensor_address);
-    //#define APP_CONFIG_KEY_SENSORS "sensors"
-    //#define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
-    //#define APP_CONFIG_KEY_SENSOR_NAME "name"
-    //#define APP_CONFIG_KEY_SENSOR_CALIBRATION "calibration"
+
+    for (size_t i = 0; i < APP_CONFIG_SENSORS_MAX_LENGTH; i++)
+    {
+        nvs_get_u64(handle, nvs_helper_indexed_key(key_buf, sizeof(key_buf), APP_CONFIG_KEY_SENSORS "%uz" APP_CONFIG_KEY_SENSOR_ADDRESS, i), &cfg->sensors[i].address);
+        size_t addr_len = sizeof(cfg->sensors[i].name);
+        nvs_get_str(handle, nvs_helper_indexed_key(key_buf, sizeof(key_buf), APP_CONFIG_KEY_SENSORS "%uz" APP_CONFIG_KEY_SENSOR_NAME, i), cfg->sensors[i].name, &addr_len);
+        nvs_helper_get_float(handle, nvs_helper_indexed_key(key_buf, sizeof(key_buf), APP_CONFIG_KEY_SENSORS "%uz" APP_CONFIG_KEY_SENSOR_CALIBRATION_SHORT, i), CALIBRATION_PRECISION, &cfg->sensors[i].calibration);
+    }
+
     nvs_helper_get_float(handle, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, CELSIUS_PRECISION, &cfg->low_threshold_celsius);
     nvs_helper_get_float(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, CELSIUS_PRECISION, &cfg->high_threshold_celsius);
     nvs_get_u8(handle, APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, &cfg->low_threshold_duty_percent);
@@ -240,6 +264,52 @@ esp_err_t app_config_load(app_config_t *cfg)
     // Close and exit
     nvs_close(handle);
     return err;
+}
+
+static esp_err_t app_config_store_sensors(nvs_handle_t handle, const app_config_t *cfg)
+{
+    esp_err_t err = ESP_FAIL;
+    char key_buf[16] = {}; // max 15 chars
+
+    for (size_t i = 0; i < APP_CONFIG_SENSORS_MAX_LENGTH; i++)
+    {
+        const app_config_sensor_t *s = &cfg->sensors[i];
+
+        // Address
+        nvs_helper_indexed_key(key_buf, sizeof(key_buf), APP_CONFIG_KEY_SENSORS "%uz" APP_CONFIG_KEY_SENSOR_ADDRESS, i);
+        if (s->address != 0)
+        {
+            HANDLE_ERROR(err = nvs_set_u64(handle, key_buf, s->address), return err);
+        }
+        else
+        {
+            HANDLE_ERROR_ERASE(err = nvs_erase_key(handle, key_buf), return err);
+        }
+
+        // Name
+        nvs_helper_indexed_key(key_buf, sizeof(key_buf), APP_CONFIG_KEY_SENSORS "%uz" APP_CONFIG_KEY_SENSOR_NAME, i);
+        if (strlen(s->name))
+        {
+            HANDLE_ERROR(err = nvs_set_str(handle, key_buf, s->name), return err);
+        }
+        else
+        {
+            HANDLE_ERROR_ERASE(err = nvs_erase_key(handle, key_buf), return err);
+        }
+
+        // Calibration
+        nvs_helper_indexed_key(key_buf, sizeof(key_buf), APP_CONFIG_KEY_SENSORS "%uz" APP_CONFIG_KEY_SENSOR_CALIBRATION_SHORT, i);
+        if (s->calibration != 0.0f)
+        {
+            HANDLE_ERROR(err = nvs_helper_set_float(handle, key_buf, CALIBRATION_PRECISION, s->calibration), return err);
+        }
+        else
+        {
+            HANDLE_ERROR_ERASE(err = nvs_erase_key(handle, key_buf), return err);
+        }
+    }
+
+    return ESP_OK;
 }
 
 esp_err_t app_config_store(const app_config_t *cfg)
@@ -272,10 +342,7 @@ esp_err_t app_config_store(const app_config_t *cfg)
     HANDLE_ERROR(err = nvs_set_blob(handle, APP_CONFIG_KEY_RPM_PINS, rpm_pins, sizeof(rpm_pins)), goto exit);
     HANDLE_ERROR(err = nvs_set_i8(handle, APP_CONFIG_KEY_SENSORS_PIN, cfg->sensors_pin), goto exit);
     HANDLE_ERROR(err = nvs_set_u64(handle, APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS, cfg->primary_sensor_address), goto exit);
-    //#define APP_CONFIG_KEY_SENSORS "sensors"
-    //#define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
-    //#define APP_CONFIG_KEY_SENSOR_NAME "name"
-    //#define APP_CONFIG_KEY_SENSOR_CALIBRATION "calibration"
+    HANDLE_ERROR(err = app_config_store_sensors(handle, cfg), goto exit);
     HANDLE_ERROR(err = nvs_helper_set_float(handle, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, CELSIUS_PRECISION, cfg->low_threshold_celsius), goto exit);
     HANDLE_ERROR(err = nvs_helper_set_float(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, CELSIUS_PRECISION, cfg->high_threshold_celsius), goto exit);
     HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, cfg->low_threshold_duty_percent), goto exit);
