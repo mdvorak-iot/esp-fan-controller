@@ -3,8 +3,6 @@
 #include <nvs.h>
 #include <string.h>
 
-static const char TAG[] = "app_config";
-
 #define HANDLE_ERROR(expr, action)  \
     {                               \
         esp_err_t err_ = (expr);    \
@@ -195,6 +193,49 @@ static void json_helper_set_float(const cJSON *data, char *key, bool *changed, f
     }
 }
 
+static char *json_helper_print_address(char *buf, size_t buf_len, uint64_t value)
+{
+    int c = snprintf(buf, buf_len, "%08x%08x", (uint32_t)(value >> 32), (uint32_t)value);
+    assert(c >= 0 && c < buf_len);
+    return buf;
+}
+
+static cJSON *json_helper_add_address_to_object(cJSON *obj, const char *key, uint64_t address)
+{
+    char addr_str[17] = {};
+    return cJSON_AddStringToObject(obj, key, json_helper_print_address(addr_str, sizeof(addr_str), address));
+}
+
+static void json_helper_set_address(const cJSON *data, char *key, bool *changed, uint64_t *out_value)
+{
+    cJSON *value_obj = cJSON_GetObjectItemCaseSensitive(data, key);
+    if (cJSON_IsString(value_obj))
+    {
+        uint64_t value = strtoull(value_obj->valuestring, NULL, 16);
+        if (*out_value != value)
+        {
+            // Value changed
+            *out_value = value;
+            *changed = true;
+        }
+    }
+}
+
+static void json_helper_set_string(const cJSON *data, char *key, bool *changed, char *out_value, size_t out_value_len)
+{
+    cJSON *value_obj = cJSON_GetObjectItemCaseSensitive(data, key);
+    if (cJSON_IsString(value_obj))
+    {
+        if (strncmp(out_value, value_obj->valuestring, out_value_len) == 0)
+        {
+            // Value changed
+            // NOTE skips null terminator if max len is reached, so -1
+            strncpy(out_value, value_obj->valuestring, out_value_len - 1);
+            *changed = true;
+        }
+    }
+}
+
 void app_config_init_defaults(app_config_t *cfg)
 {
     cfg->status_led_pin = GPIO_NUM_NC;
@@ -253,7 +294,7 @@ esp_err_t app_config_load(app_config_t *cfg)
         nvs_get_u64(handle, nvs_helper_indexed_key(key_buf, sizeof(key_buf), APP_CONFIG_KEY_SENSORS "%uz" APP_CONFIG_KEY_SENSOR_ADDRESS, i), &cfg->sensors[i].address);
         size_t addr_len = sizeof(cfg->sensors[i].name);
         nvs_get_str(handle, nvs_helper_indexed_key(key_buf, sizeof(key_buf), APP_CONFIG_KEY_SENSORS "%uz" APP_CONFIG_KEY_SENSOR_NAME, i), cfg->sensors[i].name, &addr_len);
-        nvs_helper_get_float(handle, nvs_helper_indexed_key(key_buf, sizeof(key_buf), APP_CONFIG_KEY_SENSORS "%uz" APP_CONFIG_KEY_SENSOR_CALIBRATION_SHORT, i), CALIBRATION_PRECISION, &cfg->sensors[i].calibration);
+        nvs_helper_get_float(handle, nvs_helper_indexed_key(key_buf, sizeof(key_buf), APP_CONFIG_KEY_SENSORS "%uz" APP_CONFIG_KEY_SENSOR_CALIBRATION, i), CALIBRATION_PRECISION, &cfg->sensors[i].calibration);
     }
 
     nvs_helper_get_float(handle, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, CELSIUS_PRECISION, &cfg->low_threshold_celsius);
@@ -298,7 +339,7 @@ static esp_err_t app_config_store_sensors(nvs_handle_t handle, const app_config_
         }
 
         // Calibration
-        nvs_helper_indexed_key(key_buf, sizeof(key_buf), APP_CONFIG_KEY_SENSORS "%uz" APP_CONFIG_KEY_SENSOR_CALIBRATION_SHORT, i);
+        nvs_helper_indexed_key(key_buf, sizeof(key_buf), APP_CONFIG_KEY_SENSORS "%uz" APP_CONFIG_KEY_SENSOR_CALIBRATION, i);
         if (s->calibration != 0.0f)
         {
             HANDLE_ERROR(err = nvs_helper_set_float(handle, key_buf, CALIBRATION_PRECISION, s->calibration), return err);
@@ -371,17 +412,42 @@ esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *cha
     json_helper_set_bool(data, APP_CONFIG_KEY_PWM_INVERTED_DUTY, changed, &cfg->pwm_inverted_duty);
     json_helper_set_gpio_num_array(data, APP_CONFIG_KEY_RPM_PINS, changed, cfg, cfg->rpm_pins, APP_CONFIG_RPM_MAX_LENGTH);
     json_helper_set_gpio_num(data, APP_CONFIG_KEY_SENSORS_PIN, changed, cfg, &cfg->sensors_pin);
-    // APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS
-    //#define APP_CONFIG_KEY_SENSORS "sensors"
-    //#define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
-    //#define APP_CONFIG_KEY_SENSOR_NAME "name"
-    //#define APP_CONFIG_KEY_SENSOR_CALIBRATION "calibration"
+    json_helper_set_address(data, APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS, changed, &cfg->primary_sensor_address);
+
+    cJSON *sensors = cJSON_GetObjectItemCaseSensitive(data, APP_CONFIG_KEY_SENSORS);
+    if (cJSON_IsArray(sensors))
+    {
+        for (size_t i = 0; i < APP_CONFIG_SENSORS_MAX_LENGTH; i++)
+        {
+            cJSON *sensor = cJSON_GetArrayItem(sensors, i);
+            json_helper_set_address(sensor, APP_CONFIG_KEY_SENSOR_ADDRESS, changed, &cfg->sensors[i].address);
+            json_helper_set_string(sensor, APP_CONFIG_KEY_SENSOR_NAME, changed, cfg->sensors[i].name, sizeof(cfg->sensors[i].address));
+            json_helper_set_float(sensor, APP_CONFIG_KEY_SENSOR_CALIBRATION, changed, &cfg->sensors[i].calibration);
+        }
+    }
+
     json_helper_set_float(data, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, changed, &cfg->low_threshold_celsius);
     json_helper_set_float(data, APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, changed, &cfg->high_threshold_celsius);
     json_helper_set_u8(data, APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, changed, &cfg->low_threshold_duty_percent);
     json_helper_set_u8(data, APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, changed, &cfg->high_threshold_duty_percent);
 
     return ESP_OK;
+}
+
+static void app_config_add_sensor_to(cJSON *sensors, const app_config_sensor_t *s)
+{
+    // Ignore empty
+    if (s->address == 0 && strlen(s->name) == 0 && s->calibration == 0.0f)
+    {
+        return;
+    }
+
+    cJSON *sensor_obj = cJSON_CreateObject();
+    cJSON_AddItemToArray(sensors, sensor_obj);
+
+    json_helper_add_address_to_object(sensor_obj, APP_CONFIG_KEY_SENSOR_CALIBRATION, s->address);
+    cJSON_AddStringToObject(sensor_obj, APP_CONFIG_KEY_SENSOR_CALIBRATION, s->name);
+    cJSON_AddNumberToObject(sensor_obj, APP_CONFIG_KEY_SENSOR_CALIBRATION, s->calibration);
 }
 
 esp_err_t app_config_add_to(const app_config_t *cfg, cJSON *data)
@@ -406,11 +472,17 @@ esp_err_t app_config_add_to(const app_config_t *cfg, cJSON *data)
     }
 
     cJSON_AddNumberToObject(data, APP_CONFIG_KEY_SENSORS_PIN, cfg->sensors_pin);
-    // APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS
-    //#define APP_CONFIG_KEY_SENSORS "sensors"
-    //#define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
-    //#define APP_CONFIG_KEY_SENSOR_NAME "name"
-    //#define APP_CONFIG_KEY_SENSOR_CALIBRATION "calibration"
+    json_helper_add_address_to_object(data, APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS, cfg->primary_sensor_address);
+
+    cJSON *sensors = cJSON_AddArrayToObject(data, APP_CONFIG_KEY_SENSORS);
+    if (sensors) // NULL if already exists, therefore add failed
+    {
+        for (size_t i = 0; i < APP_CONFIG_SENSORS_MAX_LENGTH; i++)
+        {
+            app_config_add_sensor_to(sensors, &cfg->sensors[i]);
+        }
+    }
+
     cJSON_AddNumberToObject(data, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, cfg->low_threshold_celsius);
     cJSON_AddNumberToObject(data, APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, cfg->high_threshold_celsius);
     cJSON_AddNumberToObject(data, APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, cfg->low_threshold_duty_percent);
