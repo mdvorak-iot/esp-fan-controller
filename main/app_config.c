@@ -10,16 +10,16 @@
     }                               \
     (void)0
 
+static const float CELSIUS_PRECISION = 100;
+
 static void nvs_helper_get_gpio_num(nvs_handle_t handle, const char *key, gpio_num_t *out_value)
 {
     int8_t value;
     if (nvs_get_i8(handle, key, &value) == ESP_OK)
     {
         *out_value = (gpio_num_t)value;
-        ESP_LOGW("app_config", "nvs_get_i8(%s)=>%u", key, value);
         return;
     }
-    ESP_LOGW("app_config", "nvs_get_i8(%s) failed", key);
 }
 
 static void nvs_helper_get_bool(nvs_handle_t handle, const char *key, bool *out_value)
@@ -28,10 +28,24 @@ static void nvs_helper_get_bool(nvs_handle_t handle, const char *key, bool *out_
     if (nvs_get_u8(handle, key, &value) == ESP_OK)
     {
         *out_value = value;
-        ESP_LOGW("app_config", "nvs_get_u8(%s)=>%u", key, value);
         return;
     }
-    ESP_LOGW("app_config", "nvs_get_u8(%s) failed", key);
+}
+
+static void nvs_helper_get_float(nvs_handle_t handle, char *key, float precision_factor, float *out_value)
+{
+    int32_t value;
+    if (nvs_get_i32(handle, key, &value) == ESP_OK)
+    {
+        *out_value = (float)value / precision_factor;
+        return;
+    }
+}
+
+static esp_err_t nvs_helper_set_float(nvs_handle_t handle, char *key, float precision_factor, float in_value)
+{
+    int32_t value = in_value * precision_factor;
+    return nvs_set_i32(handle, key, value);
 }
 
 inline static bool is_valid_gpio_num(int pin)
@@ -218,8 +232,8 @@ esp_err_t app_config_load(app_config_t *cfg)
     //#define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
     //#define APP_CONFIG_KEY_SENSOR_NAME "name"
     //#define APP_CONFIG_KEY_SENSOR_CALIBRATION "calibration"
-    //        nvs_helper_get_float(handle, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, &cfg->low_threshold_celsius);
-    //        nvs_helper_get_float(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, &cfg->high_threshold_celsius);
+    nvs_helper_get_float(handle, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, CELSIUS_PRECISION, &cfg->low_threshold_celsius);
+    nvs_helper_get_float(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, CELSIUS_PRECISION, &cfg->high_threshold_celsius);
     nvs_get_u8(handle, APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, &cfg->low_threshold_duty_percent);
     nvs_get_u8(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, &cfg->high_threshold_duty_percent);
 
@@ -262,8 +276,8 @@ esp_err_t app_config_store(const app_config_t *cfg)
     //#define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
     //#define APP_CONFIG_KEY_SENSOR_NAME "name"
     //#define APP_CONFIG_KEY_SENSOR_CALIBRATION "calibration"
-    //        HANDLE_ERROR(err = nvs_helper_set_float(handle, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, cfg->low_threshold_celsius), goto exit);
-    //        HANDLE_ERROR(err = nvs_helper_set_float(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, cfg->high_threshold_celsius), goto exit);
+    HANDLE_ERROR(err = nvs_helper_set_float(handle, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, CELSIUS_PRECISION, cfg->low_threshold_celsius), goto exit);
+    HANDLE_ERROR(err = nvs_helper_set_float(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, CELSIUS_PRECISION, cfg->high_threshold_celsius), goto exit);
     HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, cfg->low_threshold_duty_percent), goto exit);
     HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, cfg->high_threshold_duty_percent), goto exit);
 
@@ -295,8 +309,8 @@ esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *cha
     //#define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
     //#define APP_CONFIG_KEY_SENSOR_NAME "name"
     //#define APP_CONFIG_KEY_SENSOR_CALIBRATION "calibration"
-    //    json_helper_get_float(APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, data, changed, NULL, &cfg->low_threshold_celsius);
-    //    json_helper_get_float(APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, data, changed, NULL, &cfg->high_threshold_celsius);
+    json_helper_get_float(data, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, changed, &cfg->low_threshold_celsius);
+    json_helper_get_float(data, APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, changed, &cfg->high_threshold_celsius);
     json_helper_get_u8(data, APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, changed, &cfg->low_threshold_duty_percent);
     json_helper_get_u8(data, APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, changed, &cfg->high_threshold_duty_percent);
 
