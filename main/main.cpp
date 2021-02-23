@@ -128,7 +128,7 @@ static void setup_init()
 
     // Status LED
     ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_create(app_config.status_led_pin, app_config.status_led_on_state, &status_led));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_set_interval(status_led, 500, true));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_set_interval(status_led, 1000, true));
 
     // Events
     esp_event_handler_register(
@@ -136,13 +136,13 @@ static void setup_init()
             switch (event_id)
             {
             case WIFI_EVENT_STA_DISCONNECTED:
-                status_led_set_interval(status_led, 500, true);
+                status_led_set_interval(status_led, 1000, true);
                 break;
 
             case WIFI_EVENT_STA_WPS_ER_SUCCESS:
             case WIFI_EVENT_STA_WPS_ER_TIMEOUT:
             case WIFI_EVENT_STA_WPS_ER_FAILED:
-                status_led_set_interval(status_led, 500, true);
+                status_led_set_interval(status_led, 1000, true);
                 wifi_reconnect_resume();
                 break;
             default:
@@ -153,7 +153,9 @@ static void setup_init()
     esp_event_handler_register(
         WPS_CONFIG_EVENT, WPS_CONFIG_EVENT_START, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval(status_led, 100, true); }, nullptr);
     esp_event_handler_register(
-        IP_EVENT, IP_EVENT_STA_GOT_IP, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval_for(status_led, 200, false, 700, false); }, nullptr);
+        AWS_IOT_SHADOW_EVENT, AWS_IOT_SHADOW_EVENT_DISCONNECTED, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval(status_led, 1000, true); }, nullptr);
+    esp_event_handler_register(
+        AWS_IOT_SHADOW_EVENT, AWS_IOT_SHADOW_EVENT_READY, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval_for(status_led, 200, false, 700, false); }, nullptr);
 
     // Dump current config JSON
     // TODO separate method
@@ -415,7 +417,8 @@ _Noreturn static void run()
     TickType_t start = xTaskGetTickCount();
     for (;;)
     {
-        status_led_set_interval_for(status_led, 0, true, 40, false);
+        // TODO only when mqtt connected
+        status_led_set_interval_for(status_led, 0, true, 20, false);
 
         vTaskDelayUntil(&start, 1000 / portTICK_PERIOD_MS);
 
