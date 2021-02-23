@@ -59,7 +59,7 @@ inline static bool is_pin_used(const app_config_t *cfg, gpio_num_t pin)
     return false;
 }
 
-static bool json_helper_obj_gpio_num(const cJSON *value_obj, bool *changed, const app_config_t *cfg, gpio_num_t *out_value)
+static void json_helper_obj_gpio_num(const cJSON *value_obj, bool *changed, const app_config_t *cfg, gpio_num_t *out_value)
 {
     if (cJSON_IsNumber(value_obj) && is_valid_gpio_num(value_obj->valueint))
     {
@@ -68,30 +68,21 @@ static bool json_helper_obj_gpio_num(const cJSON *value_obj, bool *changed, cons
             // Validate - this must be called only if change is detected
             if (is_pin_used(cfg, (gpio_num_t)value_obj->valueint))
             {
-                // Don't store or report incompatible value
-                return false;
+                // Don't store incompatible value
+                return;
             }
 
             // Value changed
             *changed = true;
             *out_value = (gpio_num_t)value_obj->valueint;
         }
-
-        return true; // this value is valid
     }
-
-    return false; // invalid value
 }
 
-inline static void json_helper_get_gpio_num(char *key, const cJSON *desired, bool *changed, cJSON *reported, const app_config_t *cfg, gpio_num_t *out_value)
+inline static void json_helper_get_gpio_num(const cJSON *data, char *key, bool *changed, const app_config_t *cfg, gpio_num_t *out_value)
 {
-    cJSON *value_obj = cJSON_GetObjectItemCaseSensitive(desired, key);
-    bool value_valid = json_helper_obj_gpio_num(value_obj, changed, cfg, out_value);
-    if (value_valid && reported)
-    {
-        // Report, regardless whether value has changed
-        cJSON_AddNumberToObject(reported, key, *out_value);
-    }
+    cJSON *value_obj = cJSON_GetObjectItemCaseSensitive(data, key);
+    json_helper_obj_gpio_num(value_obj, changed, cfg, out_value);
 }
 
 static size_t json_helper_gpio_num_count(const gpio_num_t *pins, size_t pin_len)
@@ -108,43 +99,30 @@ static size_t json_helper_gpio_num_count(const gpio_num_t *pins, size_t pin_len)
     return actual_len;
 }
 
-static void json_helper_get_gpio_num_array(char *key, const cJSON *desired, bool *changed, cJSON *reported, const app_config_t *cfg, gpio_num_t *out_value, size_t out_value_len)
+static void json_helper_get_gpio_num_array(const cJSON *data, char *key, bool *changed, const app_config_t *cfg, gpio_num_t *out_value, size_t out_value_len)
 {
-    cJSON *array_obj = cJSON_GetObjectItemCaseSensitive(desired, key);
+    cJSON *array_obj = cJSON_GetObjectItemCaseSensitive(data, key);
     if (cJSON_IsArray(array_obj))
     {
-        bool any_valid = false;
         int array_len = cJSON_GetArraySize(array_obj);
         for (size_t i = 0; i < out_value_len; i++)
         {
             if (i < array_len)
             {
                 // Reset to false if any pin is invalid
-                any_valid |= json_helper_obj_gpio_num(cJSON_GetArrayItem(array_obj, i), changed, cfg, &out_value[i]);
+                json_helper_obj_gpio_num(cJSON_GetArrayItem(array_obj, i), changed, cfg, &out_value[i]);
             }
             else
             {
                 out_value[i] = GPIO_NUM_NC;
             }
         }
-        // Report if any have changed
-        if ((any_valid || array_len == 0) && reported)
-        {
-            // Report, regardless whether value has changed
-            cJSON *reported_array = cJSON_AddArrayToObject(reported, key);
-            // Trim the array, don't report NC pins at the end
-            size_t reported_actual_len = json_helper_gpio_num_count(out_value, out_value_len);
-            for (size_t i = 0; i < reported_actual_len; i++)
-            {
-                cJSON_AddItemToArray(reported_array, cJSON_CreateNumber(out_value[i]));
-            }
-        }
     }
 }
 
-static void json_helper_get_bool(char *key, const cJSON *desired, bool *changed, cJSON *reported, bool *out_value)
+static void json_helper_get_bool(const cJSON *data, char *key, bool *changed, bool *out_value)
 {
-    cJSON *value_obj = cJSON_GetObjectItemCaseSensitive(desired, key);
+    cJSON *value_obj = cJSON_GetObjectItemCaseSensitive(data, key);
     if (cJSON_IsBool(value_obj))
     {
         bool value_bool = cJSON_IsTrue(value_obj);
@@ -154,17 +132,12 @@ static void json_helper_get_bool(char *key, const cJSON *desired, bool *changed,
             *out_value = value_bool;
             *changed = true;
         }
-        if (reported)
-        {
-            // Report, regardless whether value has changed
-            cJSON_AddBoolToObject(reported, key, *out_value);
-        }
     }
 }
 
-static void json_helper_get_u8(char *key, const cJSON *desired, bool *changed, cJSON *reported, uint8_t *out_value)
+static void json_helper_get_u8(const cJSON *data, char *key, bool *changed, uint8_t *out_value)
 {
-    cJSON *value_obj = cJSON_GetObjectItemCaseSensitive(desired, key);
+    cJSON *value_obj = cJSON_GetObjectItemCaseSensitive(data, key);
     if (cJSON_IsNumber(value_obj) && value_obj->valueint >= 0 && value_obj->valueint <= 255)
     {
         if (*out_value != (uint8_t)value_obj->valueint)
@@ -173,17 +146,12 @@ static void json_helper_get_u8(char *key, const cJSON *desired, bool *changed, c
             *out_value = (uint8_t)value_obj->valueint;
             *changed = true;
         }
-        if (reported)
-        {
-            // Report, regardless whether value has changed
-            cJSON_AddNumberToObject(reported, key, *out_value);
-        }
     }
 }
 
-static void json_helper_get_float(char *key, const cJSON *desired, bool *changed, cJSON *reported, float *out_value)
+static void json_helper_get_float(const cJSON *data, char *key, bool *changed, float *out_value)
 {
-    cJSON *value_obj = cJSON_GetObjectItemCaseSensitive(desired, key);
+    cJSON *value_obj = cJSON_GetObjectItemCaseSensitive(data, key);
     if (cJSON_IsNumber(value_obj))
     {
         float value = (float)value_obj->valuedouble;
@@ -192,11 +160,6 @@ static void json_helper_get_float(char *key, const cJSON *desired, bool *changed
             // Value changed
             *out_value = value;
             *changed = true;
-        }
-        if (reported)
-        {
-            // Report, regardless whether value has changed
-            cJSON_AddNumberToObject(reported, key, *out_value);
         }
     }
 }
@@ -321,12 +284,12 @@ esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *cha
         return ESP_ERR_INVALID_ARG;
     }
 
-    json_helper_get_gpio_num(APP_CONFIG_KEY_STATUS_LED_PIN, data, changed, NULL, cfg, &cfg->status_led_pin);
-    json_helper_get_bool(APP_CONFIG_KEY_STATUS_LED_ON_STATE, data, changed, NULL, &cfg->status_led_on_state);
-    json_helper_get_gpio_num(APP_CONFIG_KEY_PWM_PIN, data, changed, NULL, cfg, &cfg->pwm_pin);
-    json_helper_get_bool(APP_CONFIG_KEY_PWM_INVERTED_DUTY, data, changed, NULL, &cfg->pwm_inverted_duty);
-    json_helper_get_gpio_num_array(APP_CONFIG_KEY_RPM_PINS, data, changed, NULL, cfg, cfg->rpm_pins, APP_CONFIG_RPM_MAX_LENGTH);
-    json_helper_get_gpio_num(APP_CONFIG_KEY_SENSORS_PIN, data, changed, NULL, cfg, &cfg->sensors_pin);
+    json_helper_get_gpio_num(data, APP_CONFIG_KEY_STATUS_LED_PIN, changed, cfg, &cfg->status_led_pin);
+    json_helper_get_bool(data, APP_CONFIG_KEY_STATUS_LED_ON_STATE, changed, &cfg->status_led_on_state);
+    json_helper_get_gpio_num(data, APP_CONFIG_KEY_PWM_PIN, changed, cfg, &cfg->pwm_pin);
+    json_helper_get_bool(data, APP_CONFIG_KEY_PWM_INVERTED_DUTY, changed, &cfg->pwm_inverted_duty);
+    json_helper_get_gpio_num_array(data, APP_CONFIG_KEY_RPM_PINS, changed, cfg, cfg->rpm_pins, APP_CONFIG_RPM_MAX_LENGTH);
+    json_helper_get_gpio_num(data, APP_CONFIG_KEY_SENSORS_PIN, changed, cfg, &cfg->sensors_pin);
     // APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS
     //#define APP_CONFIG_KEY_SENSORS "sensors"
     //#define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
@@ -334,8 +297,8 @@ esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *cha
     //#define APP_CONFIG_KEY_SENSOR_CALIBRATION "calibration"
     //    json_helper_get_float(APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, data, changed, NULL, &cfg->low_threshold_celsius);
     //    json_helper_get_float(APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, data, changed, NULL, &cfg->high_threshold_celsius);
-    json_helper_get_u8(APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, data, changed, NULL, &cfg->low_threshold_duty_percent);
-    json_helper_get_u8(APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, data, changed, NULL, &cfg->high_threshold_duty_percent);
+    json_helper_get_u8(data, APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, changed, &cfg->low_threshold_duty_percent);
+    json_helper_get_u8(data, APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, changed, &cfg->high_threshold_duty_percent);
 
     return ESP_OK;
 }
