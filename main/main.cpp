@@ -452,9 +452,12 @@ static void setup_final()
 _Noreturn static void run()
 {
     TickType_t start = xTaskGetTickCount();
+    uint8_t blink_counter = 0;
+
     for (;;)
     {
-        if (!status_led_is_active(status_led))
+        // Blink every n seconds (approx)
+        if ((++blink_counter % 8) == 0 && !status_led_is_active(status_led))
         {
             status_led_set_interval_for(status_led, 0, true, 20, false);
         }
