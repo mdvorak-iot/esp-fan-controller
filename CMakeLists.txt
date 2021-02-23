@@ -9,7 +9,7 @@ ExternalComponent_Get(wifi_reconnect https://github.com/mdvorak-iot/esp-wifi-rec
 ExternalComponent_Get(esp32-owb https://github.com/DavidAntliff/esp32-owb.git b2032f7)
 ExternalComponent_Get(esp32-ds18b20 https://github.com/DavidAntliff/esp32-ds18b20.git d677f09)
 ExternalComponent_Get(aws_iot_mqtt_config https://github.com/mdvorak-iot/esp-aws-iot-mqtt-config.git fbdf8777)
-ExternalComponent_Get(aws_iot_shadow https://github.com/mdvorak-iot/esp-aws-iot-shadow.git 0828e172)
+ExternalComponent_Get(aws_iot_shadow https://github.com/mdvorak-iot/esp-aws-iot-shadow.git cfa72272)
 
 # Project
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)

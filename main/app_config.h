@@ -39,8 +39,8 @@ typedef struct app_config
     gpio_num_t sensors_pin;
     uint64_t primary_sensor_address;
     app_config_sensor_t sensors[APP_CONFIG_SENSORS_MAX_LENGTH];
-    uint8_t low_threshold_celsius;
-    uint8_t high_threshold_celsius;
+    float low_threshold_celsius;
+    float high_threshold_celsius;
     uint8_t low_threshold_duty_percent;
     uint8_t high_threshold_duty_percent;
 } app_config_t;
@@ -51,7 +51,7 @@ esp_err_t app_config_load(app_config_t *cfg);
 
 esp_err_t app_config_store(const app_config_t *cfg);
 
-esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *changed, cJSON *reported);
+esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *changed);
 
 esp_err_t app_config_add_to(const app_config_t *cfg, cJSON *data);
 
@@ -67,10 +67,10 @@ esp_err_t app_config_add_to(const app_config_t *cfg, cJSON *data);
 #define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
 #define APP_CONFIG_KEY_SENSOR_NAME "name"
 #define APP_CONFIG_KEY_SENSOR_CALIBRATION "calibration"
-#define APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS "low_thresh_c"
-#define APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS "high_thresh_c"
-#define APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT "low_thresh_duty"
-#define APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT "high_thresh_duty"
+#define APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS "lo_thresh_c"
+#define APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS "hi_thresh_c"
+#define APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT "lo_thresh_duty"
+#define APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT "hi_thresh_duty"
 
 #ifdef __cplusplus
 }

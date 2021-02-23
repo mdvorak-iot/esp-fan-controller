@@ -76,11 +76,22 @@ static void do_mqtt_connect()
     }
 }
 
-static void do_restart(__unused void *p)
+static void restart_task(__unused void *p)
 {
+    // TODO this fails in idf 4.2
     esp_mqtt_client_stop(mqtt_client);
-    web_server_stop();
+    // TODO remove this
+    ESP_LOGI(TAG, "free stack: %d bytes", uxTaskGetStackHighWaterMark(nullptr) * 4);
     esp_restart();
+}
+
+static void do_restart()
+{
+    ESP_LOGI(TAG, "scheduling restart...");
+
+    // Note: This must be done from outside handlers, so execute it in own task
+    // TODO check for error
+    xTaskCreate(restart_task, "restart_task", 1500, nullptr, tskIDLE_PRIORITY, nullptr);
 }
 
 static void setup_init()
@@ -142,6 +153,15 @@ static void setup_init()
         WPS_CONFIG_EVENT, WPS_CONFIG_EVENT_START, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval(status_led, 100, true); }, nullptr);
     esp_event_handler_register(
         IP_EVENT, IP_EVENT_STA_GOT_IP, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval_for(status_led, 200, false, 700, false); }, nullptr);
+
+    // Dump current config JSON
+    // TODO separate method
+    cJSON *app_config_json = cJSON_CreateObject();
+    app_config_add_to(&app_config, app_config_json);
+    char *app_config_str = cJSON_Print(app_config_json);
+    cJSON_Delete(app_config_json);
+    ESP_LOGI(TAG, "initial app_config:\n%s", app_config_str);
+    free(app_config_str);
 }
 
 static void setup_fans()
@@ -162,7 +182,12 @@ static void setup_fans()
 
 static void setup_sensors()
 {
-    // TODO don't throw on error
+    // Skip if not configured
+    if (app_config.sensors_pin < 0 || GPIO_IS_VALID_GPIO(app_config.sensors_pin))
+    {
+        ESP_LOGW(TAG, "sensor_pin not valid, skipping sensors config");
+        return;
+    }
 
     // Initialize OneWireBus
     owb_rmt_initialize(&owb_driver, app_config.sensors_pin, SENSORS_RMT_CHANNEL_TX, SENSORS_RMT_CHANNEL_RX);
@@ -216,44 +241,82 @@ static void mqtt_event_handler(__unused void *handler_args, __unused esp_event_b
     }
 }
 
-static void shadow_event_handler_get_accepted(__unused void *handler_args, __unused esp_event_base_t event_base,
-                                              __unused int32_t event_id, void *event_data)
+static void shadow_event_handler_state_accepted(__unused void *handler_args, __unused esp_event_base_t event_base,
+                                                __unused int32_t event_id, void *event_data)
 {
     auto *event = (const aws_iot_shadow_event_data_t *)event_data;
 
-    cJSON *desired = cJSON_Duplicate(event->desired, true);
-    if (desired)
+    // Ignore if desired is missing
+    if (!event->desired)
     {
-        // Note: since we are using duplicate from original message, this does not overwrite anything already there
-        // TODO log error
-        if (app_config_add_to(&app_config, desired) == ESP_OK)
-        {
-            // TODO log error
-            aws_iot_shadow_request_update_desired(event->handle, desired, nullptr);
-        }
-
-        cJSON_Delete(desired);
+        return;
     }
-}
 
-static void shadow_event_handler_state(__unused void *handler_args, __unused esp_event_base_t event_base,
-                                       __unused int32_t event_id, void *event_data)
-{
-    auto *event = (const aws_iot_shadow_event_data_t *)event_data;
+    // New status
+    cJSON *to_desire = nullptr;
+    cJSON *to_report = cJSON_CreateObject();
 
+    // Handle change
     bool changed = false;
-    ESP_ERROR_CHECK_WITHOUT_ABORT(app_config_update_from(&app_config, event->state->data, &changed, event->state->to_report));
+    esp_err_t err = app_config_update_from(&app_config, event->desired, &changed);
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(TAG, "failed to update app_config from a shadow: %d (%s)", err, esp_err_to_name(err));
+        goto cleanup;
+    }
 
-    // Persist
     if (changed)
     {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(app_config_store(&app_config));
+        ESP_LOGI(TAG, "desired app_config changed");
+
+        // Store to NVS
+        err = app_config_store(&app_config);
+        if (err != ESP_OK)
+        {
+            ESP_LOGW(TAG, "failed to store app_config: %d (%s)", err, esp_err_to_name(err));
+            goto cleanup;
+        }
+        ESP_LOGI(TAG, "app_config stored successfully");
+
+        // TODO remove
+        cJSON *app_config_json = cJSON_CreateObject();
+        app_config_add_to(&app_config, app_config_json);
+        char *app_config_str = cJSON_Print(app_config_json);
+        cJSON_Delete(app_config_json);
+        ESP_LOGI(TAG, "stored app_config:\n%s", app_config_str);
+        free(app_config_str);
+
+        // Restart
         // And restart, since we cannot re-initialize some of the services
         // TODO restart only when really needed
-        // Note: This must be done from outside mqtt handler
-        // TODO check for error
-        xTaskCreate(do_restart, "do_restart", 512, nullptr, tskIDLE_PRIORITY, nullptr);
+        do_restart();
+        goto cleanup; // No need to continue atm
     }
+
+    // Report always
+    app_config_add_to(&app_config, to_report);
+
+    // Fill in desired attributes on full refresh
+    if (event->event_id == AWS_IOT_SHADOW_EVENT_GET_ACCEPTED)
+    {
+        // TODO get rid of duplicate
+        to_desire = cJSON_Duplicate(event->desired, true);
+        // This does not overwrite existing attributes
+        app_config_add_to(&app_config, to_desire);
+    }
+
+    // Publish event
+    err = aws_iot_shadow_request_update(event->handle, to_desire, to_report, nullptr);
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(TAG, "failed to publish update: %d (%s)", err, esp_err_to_name(err));
+        goto cleanup;
+    }
+
+cleanup:
+    // Cleanup
+    cJSON_Delete(to_desire);
+    cJSON_Delete(to_desire);
 }
 
 static void shadow_event_handler_error(__unused void *handler_args, __unused esp_event_base_t event_base,
@@ -288,8 +351,8 @@ static void setup_aws()
 
     // Shadow
     ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_init(mqtt_client, aws_iot_shadow_thing_name(mqtt_cfg.client_id), nullptr, &shadow_client));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_GET_ACCEPTED, shadow_event_handler_get_accepted, nullptr));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_STATE, shadow_event_handler_state, nullptr));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_GET_ACCEPTED, shadow_event_handler_state_accepted, nullptr));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_UPDATE_ACCEPTED, shadow_event_handler_state_accepted, nullptr));
     ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_ERROR, shadow_event_handler_error, nullptr));
 }
 
@@ -335,8 +398,6 @@ esp_err_t root_handler_get(httpd_req_t *req)
 
 static void setup_final()
 {
-    // TODO print whole config json here
-
     // HTTP Server
     ESP_ERROR_CHECK_WITHOUT_ABORT(web_server_start());
     ESP_ERROR_CHECK_WITHOUT_ABORT(web_server_register_handler("/", HTTP_GET, root_handler_get, nullptr));
@@ -358,23 +419,26 @@ _Noreturn static void run()
         vTaskDelayUntil(&start, 1000 / portTICK_PERIOD_MS);
 
         // Read temperatures
-        ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_convert(sensors));
-        ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_wait_for_conversion(sensors));
-
-        for (size_t i = 0; i < sensors->count; i++)
+        if (sensors)
         {
-            float temp_c = -127;
+            ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_convert(sensors));
+            ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_wait_for_conversion(sensors));
 
-            if (ds18b20_group_read(sensors, i, &temp_c) == ESP_OK)
+            for (size_t i = 0; i < sensors->count; i++)
             {
-                temp_c += sensor_configs[i].offset_c;
+                float temp_c = -127;
 
-                ESP_LOGI(TAG, "read temperature %s: %.3f C", sensor_configs[i].address.c_str(), temp_c);
-                sensor_values_c[i] = temp_c;
-            }
-            else
-            {
-                ESP_LOGW(TAG, "failed to read from %s", sensor_configs[i].address.c_str());
+                if (ds18b20_group_read(sensors, i, &temp_c) == ESP_OK)
+                {
+                    temp_c += sensor_configs[i].offset_c;
+
+                    ESP_LOGI(TAG, "read temperature %s: %.3f C", sensor_configs[i].address.c_str(), temp_c);
+                    sensor_values_c[i] = temp_c;
+                }
+                else
+                {
+                    ESP_LOGW(TAG, "failed to read from %s", sensor_configs[i].address.c_str());
+                }
             }
         }
 

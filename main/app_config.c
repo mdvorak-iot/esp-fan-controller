@@ -12,11 +12,14 @@
 
 static void nvs_helper_get_gpio_num(nvs_handle_t handle, const char *key, gpio_num_t *out_value)
 {
-    uint8_t value;
-    if (nvs_get_u8(handle, key, &value) == ESP_OK)
+    int8_t value;
+    if (nvs_get_i8(handle, key, &value) == ESP_OK)
     {
-        *out_value = value;
+        *out_value = (gpio_num_t)value;
+        ESP_LOGW("app_config", "nvs_get_i8(%s)=>%u", key, value);
+        return;
     }
+    ESP_LOGW("app_config", "nvs_get_i8(%s) failed", key);
 }
 
 static void nvs_helper_get_bool(nvs_handle_t handle, const char *key, bool *out_value)
@@ -25,7 +28,10 @@ static void nvs_helper_get_bool(nvs_handle_t handle, const char *key, bool *out_
     if (nvs_get_u8(handle, key, &value) == ESP_OK)
     {
         *out_value = value;
+        ESP_LOGW("app_config", "nvs_get_u8(%s)=>%u", key, value);
+        return;
     }
+    ESP_LOGW("app_config", "nvs_get_u8(%s) failed", key);
 }
 
 inline static bool is_valid_gpio_num(int pin)
@@ -175,6 +181,26 @@ static void json_helper_get_u8(char *key, const cJSON *desired, bool *changed, c
     }
 }
 
+static void json_helper_get_float(char *key, const cJSON *desired, bool *changed, cJSON *reported, float *out_value)
+{
+    cJSON *value_obj = cJSON_GetObjectItemCaseSensitive(desired, key);
+    if (cJSON_IsNumber(value_obj))
+    {
+        float value = (float)value_obj->valuedouble;
+        if (*out_value != value)
+        {
+            // Value changed
+            *out_value = value;
+            *changed = true;
+        }
+        if (reported)
+        {
+            // Report, regardless whether value has changed
+            cJSON_AddNumberToObject(reported, key, *out_value);
+        }
+    }
+}
+
 void app_config_init_defaults(app_config_t *cfg)
 {
     cfg->status_led_pin = GPIO_NUM_NC;
@@ -186,9 +212,9 @@ void app_config_init_defaults(app_config_t *cfg)
     cfg->sensors_pin = GPIO_NUM_NC;
     cfg->primary_sensor_address = 0;
     memset(cfg->sensors, 0, sizeof(cfg->sensors));
-    cfg->low_threshold_celsius = 0;
-    cfg->high_threshold_celsius = 100;
-    cfg->low_threshold_duty_percent = 0;
+    cfg->low_threshold_celsius = 20;
+    cfg->high_threshold_celsius = 70;
+    cfg->low_threshold_duty_percent = 50;
     cfg->high_threshold_duty_percent = 100;
 }
 
@@ -229,8 +255,8 @@ esp_err_t app_config_load(app_config_t *cfg)
     //#define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
     //#define APP_CONFIG_KEY_SENSOR_NAME "name"
     //#define APP_CONFIG_KEY_SENSOR_CALIBRATION "calibration"
-    nvs_get_u8(handle, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, &cfg->low_threshold_celsius);
-    nvs_get_u8(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, &cfg->high_threshold_celsius);
+    //        nvs_helper_get_float(handle, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, &cfg->low_threshold_celsius);
+    //        nvs_helper_get_float(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, &cfg->high_threshold_celsius);
     nvs_get_u8(handle, APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, &cfg->low_threshold_duty_percent);
     nvs_get_u8(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, &cfg->high_threshold_duty_percent);
 
@@ -273,13 +299,14 @@ esp_err_t app_config_store(const app_config_t *cfg)
     //#define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
     //#define APP_CONFIG_KEY_SENSOR_NAME "name"
     //#define APP_CONFIG_KEY_SENSOR_CALIBRATION "calibration"
-    HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, cfg->low_threshold_celsius), goto exit);
-    HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, cfg->high_threshold_celsius), goto exit);
+    //        HANDLE_ERROR(err = nvs_helper_set_float(handle, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, cfg->low_threshold_celsius), goto exit);
+    //        HANDLE_ERROR(err = nvs_helper_set_float(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, cfg->high_threshold_celsius), goto exit);
     HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, cfg->low_threshold_duty_percent), goto exit);
     HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, cfg->high_threshold_duty_percent), goto exit);
 
     // Commit
     err = nvs_commit(handle);
+    ESP_LOGI("app_config", "nvs_commit=%d", err);
 
 exit:
     // Close and exit
@@ -287,28 +314,28 @@ exit:
     return err;
 }
 
-esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *changed, cJSON *reported)
+esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *changed)
 {
     if (cfg == NULL || data == NULL || changed == NULL)
     {
         return ESP_ERR_INVALID_ARG;
     }
 
-    json_helper_get_gpio_num(APP_CONFIG_KEY_STATUS_LED_PIN, data, changed, reported, cfg, &cfg->status_led_pin);
-    json_helper_get_bool(APP_CONFIG_KEY_STATUS_LED_ON_STATE, data, changed, reported, &cfg->status_led_on_state);
-    json_helper_get_gpio_num(APP_CONFIG_KEY_PWM_PIN, data, changed, reported, cfg, &cfg->pwm_pin);
-    json_helper_get_bool(APP_CONFIG_KEY_PWM_INVERTED_DUTY, data, changed, reported, &cfg->pwm_inverted_duty);
-    json_helper_get_gpio_num_array(APP_CONFIG_KEY_RPM_PINS, data, changed, reported, cfg, cfg->rpm_pins, APP_CONFIG_RPM_MAX_LENGTH);
-    json_helper_get_gpio_num(APP_CONFIG_KEY_SENSORS_PIN, data, changed, reported, cfg, &cfg->sensors_pin);
+    json_helper_get_gpio_num(APP_CONFIG_KEY_STATUS_LED_PIN, data, changed, NULL, cfg, &cfg->status_led_pin);
+    json_helper_get_bool(APP_CONFIG_KEY_STATUS_LED_ON_STATE, data, changed, NULL, &cfg->status_led_on_state);
+    json_helper_get_gpio_num(APP_CONFIG_KEY_PWM_PIN, data, changed, NULL, cfg, &cfg->pwm_pin);
+    json_helper_get_bool(APP_CONFIG_KEY_PWM_INVERTED_DUTY, data, changed, NULL, &cfg->pwm_inverted_duty);
+    json_helper_get_gpio_num_array(APP_CONFIG_KEY_RPM_PINS, data, changed, NULL, cfg, cfg->rpm_pins, APP_CONFIG_RPM_MAX_LENGTH);
+    json_helper_get_gpio_num(APP_CONFIG_KEY_SENSORS_PIN, data, changed, NULL, cfg, &cfg->sensors_pin);
     // APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS
     //#define APP_CONFIG_KEY_SENSORS "sensors"
     //#define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
     //#define APP_CONFIG_KEY_SENSOR_NAME "name"
     //#define APP_CONFIG_KEY_SENSOR_CALIBRATION "calibration"
-    json_helper_get_u8(APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, data, changed, reported, &cfg->low_threshold_celsius);
-    json_helper_get_u8(APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, data, changed, reported, &cfg->high_threshold_celsius);
-    json_helper_get_u8(APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, data, changed, reported, &cfg->low_threshold_duty_percent);
-    json_helper_get_u8(APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, data, changed, reported, &cfg->high_threshold_duty_percent);
+    //    json_helper_get_float(APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, data, changed, NULL, &cfg->low_threshold_celsius);
+    //    json_helper_get_float(APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, data, changed, NULL, &cfg->high_threshold_celsius);
+    json_helper_get_u8(APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, data, changed, NULL, &cfg->low_threshold_duty_percent);
+    json_helper_get_u8(APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, data, changed, NULL, &cfg->high_threshold_duty_percent);
 
     return ESP_OK;
 }
