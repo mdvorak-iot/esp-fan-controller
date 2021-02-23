@@ -78,10 +78,7 @@ static void do_mqtt_connect()
 
 static void restart_task(__unused void *p)
 {
-    // TODO this fails in idf 4.2
     esp_mqtt_client_stop(mqtt_client);
-    // TODO remove this
-    ESP_LOGI(TAG, "free stack: %d bytes", uxTaskGetStackHighWaterMark(nullptr) * 4);
     esp_restart();
 }
 
@@ -90,8 +87,12 @@ static void do_restart()
     ESP_LOGI(TAG, "scheduling restart...");
 
     // Note: This must be done from outside handlers, so execute it in own task
-    // TODO check for error
-    xTaskCreate(restart_task, "restart_task", 1500, nullptr, tskIDLE_PRIORITY, nullptr);
+    auto r = xTaskCreate(restart_task, "restart_task", 1500, nullptr, tskIDLE_PRIORITY, nullptr);
+    if (r != pdTRUE)
+    {
+        ESP_LOGE(TAG, "failed to create restart_task, restarting immediately");
+        esp_restart();
+    }
 }
 
 static void setup_init()
