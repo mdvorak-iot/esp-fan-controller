@@ -217,7 +217,7 @@ static void setup_fans()
 static void setup_sensors()
 {
     // Skip if not configured
-    if (app_config.sensors_pin < 0 || GPIO_IS_VALID_GPIO(app_config.sensors_pin))
+    if (app_config.sensors_pin < 0 || !GPIO_IS_VALID_GPIO(app_config.sensors_pin))
     {
         ESP_LOGW(TAG, "sensor_pin not valid, skipping sensors config");
         return;
@@ -280,23 +280,28 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
 {
     auto *event = (const aws_iot_shadow_event_data_t *)event_data;
 
-    // Ignore if desired is missing
-    if (!event->desired)
+    // Ignore if desired is missing in update
+    if (!event->desired && event->event_id == AWS_IOT_SHADOW_EVENT_UPDATE_ACCEPTED)
     {
         return;
     }
 
     // New status
+    esp_err_t err = ESP_OK;
     cJSON *to_desire = nullptr;
     cJSON *to_report = cJSON_CreateObject();
+    cJSON *to_report_config = cJSON_AddObjectToObject(to_report, "cfg"); // TODO constant
 
     // Handle change
     bool changed = false;
-    esp_err_t err = app_config_update_from(&app_config, event->desired, &changed);
-    if (err != ESP_OK)
+    if (event->desired)
     {
-        ESP_LOGW(TAG, "failed to update app_config from a shadow: %d (%s)", err, esp_err_to_name(err));
-        goto cleanup;
+        err = app_config_update_from(&app_config, event->desired, &changed);
+        if (err != ESP_OK)
+        {
+            ESP_LOGW(TAG, "failed to update app_config from a shadow: %d (%s)", err, esp_err_to_name(err));
+            goto cleanup;
+        }
     }
 
     if (changed)
@@ -328,15 +333,36 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
     }
 
     // Report always
-    app_config_add_to(&app_config, to_report);
+    app_config_add_to(&app_config, to_report_config);
 
     // Fill in desired attributes on full refresh
     if (event->event_id == AWS_IOT_SHADOW_EVENT_GET_ACCEPTED)
     {
-        // TODO get rid of duplicate
-        to_desire = cJSON_Duplicate(event->desired, true);
+        cJSON *desired_config = cJSON_GetObjectItemCaseSensitive(event->desired, "cfg"); // TODO constant
+        cJSON *to_desire_config = desired_config ? cJSON_Duplicate(desired_config, true) : cJSON_CreateObject();
         // This does not overwrite existing attributes
-        app_config_add_to(&app_config, to_desire);
+        app_config_add_to(&app_config, to_desire_config);
+
+        to_desire = cJSON_CreateObject();
+        cJSON_AddItemToObject(to_desire, "cfg", to_desire_config); // TODO constant
+
+        // Also report found sensors
+        cJSON *sensors_obj = cJSON_AddArrayToObject(to_report, "sensors"); // TODO constant
+        if (sensors)
+        {
+            for (size_t i = 0; i < sensors->count; i++)
+            {
+                cJSON *sensor_obj = cJSON_CreateObject();
+                cJSON_AddStringToObject(sensor_obj, APP_CONFIG_KEY_SENSOR_ADDRESS, sensor_configs[i].name.c_str());
+                cJSON_AddItemToArray(sensors_obj, sensor_obj);
+            }
+        }
+
+        // Remove default welcome keys
+        if (cJSON_HasObjectItem(event->desired, "welcome"))
+            cJSON_AddNullToObject(to_desire, "welcome");
+        if (cJSON_HasObjectItem(event->reported, "welcome"))
+            cJSON_AddNullToObject(to_report, "welcome");
     }
 
     // Publish event

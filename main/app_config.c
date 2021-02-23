@@ -193,17 +193,10 @@ static void json_helper_set_float(const cJSON *data, char *key, bool *changed, f
     }
 }
 
-static char *json_helper_print_address(char *buf, size_t buf_len, uint64_t value)
-{
-    int c = snprintf(buf, buf_len, "%08x%08x", (uint32_t)(value >> 32), (uint32_t)value);
-    assert(c >= 0 && c < buf_len);
-    return buf;
-}
-
 static cJSON *json_helper_add_address_to_object(cJSON *obj, const char *key, uint64_t address)
 {
     char addr_str[17] = {};
-    return cJSON_AddStringToObject(obj, key, json_helper_print_address(addr_str, sizeof(addr_str), address));
+    return cJSON_AddStringToObject(obj, key, app_config_print_address(addr_str, sizeof(addr_str), address));
 }
 
 static void json_helper_set_address(const cJSON *data, char *key, bool *changed, uint64_t *out_value)
@@ -489,4 +482,11 @@ esp_err_t app_config_add_to(const app_config_t *cfg, cJSON *data)
     cJSON_AddNumberToObject(data, APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, cfg->high_threshold_duty_percent);
 
     return ESP_OK;
+}
+
+char *app_config_print_address(char *buf, size_t buf_len, uint64_t value)
+{
+    int c = snprintf(buf, buf_len, "%08x%08x", (uint32_t)(value >> 32), (uint32_t)value);
+    assert(c >= 0 && c < buf_len);
+    return buf;
 }
