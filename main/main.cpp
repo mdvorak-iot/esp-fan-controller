@@ -11,6 +11,7 @@
 #include <esp_log.h>
 #include <esp_ota_ops.h>
 #include <esp_wifi.h>
+#include <freertos/event_groups.h>
 #include <mqtt_client.h>
 #include <nvs_flash.h>
 #include <status_led.h>
@@ -19,14 +20,18 @@
 
 static const char TAG[] = "main";
 
-const auto PWM_TIMER = LEDC_TIMER_0;
-const auto PWM_CHANNEL = LEDC_CHANNEL_0;
-const auto SENSORS_RMT_CHANNEL_TX = RMT_CHANNEL_0;
-const auto SENSORS_RMT_CHANNEL_RX = RMT_CHANNEL_1;
+static const auto STATUS_LED_CONNECTING_INTERVAL = 500u;
+static const auto PWM_TIMER = LEDC_TIMER_0;
+static const auto PWM_CHANNEL = LEDC_CHANNEL_0;
+static const auto SENSORS_RMT_CHANNEL_TX = RMT_CHANNEL_0;
+static const auto SENSORS_RMT_CHANNEL_RX = RMT_CHANNEL_1;
+
+static const auto STATE_BIT_RECONFIGURE = BIT0;
+static const auto STATE_BIT_MQTT_STARTED = BIT1;
+static const auto STATE_BIT_SHADOW_READY = BIT2;
 
 // Configuration
-static bool reconfigure = false;
-static bool mqtt_started = false;
+static EventGroupHandle_t state;
 static app_config_t app_config = {};
 static status_led_handle_t status_led;
 static esp_mqtt_client_handle_t mqtt_client = nullptr;
@@ -42,37 +47,30 @@ static struct ds18b20_config
 static volatile float sensor_values_c[DS18B20_GROUP_MAX_SIZE] = {0};
 static volatile float fan_duty_percent = 0;
 
-static esp_err_t set_fan_duty(float duty_percent)
-{
-    // Ignore disabled
-    if (app_config.pwm_pin == GPIO_NUM_NC)
-    {
-        return ESP_OK;
-    }
-
-    // Invert
-    esp_err_t err = fan_control_set_duty(PWM_CHANNEL, app_config.pwm_inverted_duty ? 1 - duty_percent : duty_percent);
-    if (err == ESP_OK)
-    {
-        fan_duty_percent = duty_percent;
-    }
-    return err;
-}
-
 static void do_mqtt_connect()
 {
-    if (!mqtt_started)
+    if (xEventGroupGetBits(state) & STATE_BIT_MQTT_STARTED)
     {
-        // Initial connection
-        ESP_LOGI(TAG, "start mqtt client");
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_mqtt_client_start(mqtt_client));
-        mqtt_started = true;
+        ESP_LOGI(TAG, "reconnect mqtt client");
+        esp_err_t err = esp_mqtt_client_reconnect(mqtt_client);
+        if (err != ESP_OK)
+        {
+            ESP_LOGW(TAG, "esp_mqtt_client_reconnect failed: %d (%s)", err, esp_err_to_name(err));
+        }
     }
     else
     {
-        // Ignore error here
-        ESP_LOGI(TAG, "reconnect mqtt client");
-        esp_mqtt_client_reconnect(mqtt_client);
+        // Initial connection
+        ESP_LOGI(TAG, "start mqtt client");
+        esp_err_t err = esp_mqtt_client_start(mqtt_client);
+        if (err == ESP_OK)
+        {
+            xEventGroupSetBits(state, STATE_BIT_MQTT_STARTED);
+        }
+        else
+        {
+            ESP_LOGE(TAG, "esp_mqtt_client_start failed: %d (%s)", err, esp_err_to_name(err));
+        }
     }
 }
 
@@ -95,8 +93,62 @@ static void do_restart()
     }
 }
 
+static esp_err_t set_fan_duty(float duty_percent)
+{
+    // Ignore disabled
+    if (app_config.pwm_pin == GPIO_NUM_NC)
+    {
+        return ESP_OK;
+    }
+
+    // Invert
+    esp_err_t err = fan_control_set_duty(PWM_CHANNEL, app_config.pwm_inverted_duty ? 1 - duty_percent : duty_percent);
+    if (err == ESP_OK)
+    {
+        fan_duty_percent = duty_percent;
+    }
+    return err;
+}
+
+static void disconnected_handler(__unused void *arg, esp_event_base_t event_base,
+                                 __unused int32_t event_id, __unused void *event_data)
+{
+    ESP_LOGD(TAG, "disconnected %s", event_base);
+    xEventGroupClearBits(state, STATE_BIT_SHADOW_READY);
+    status_led_set_interval(status_led, STATUS_LED_CONNECTING_INTERVAL, true);
+}
+
+static void shadow_ready_handler(__unused void *arg, __unused esp_event_base_t event_base,
+                                 __unused int32_t event_id, __unused void *event_data)
+{
+    ESP_LOGD(TAG, "shadow ready");
+    xEventGroupSetBits(state, STATE_BIT_SHADOW_READY);
+    status_led_set_interval_for(status_led, 200, false, 700, false);
+}
+
+static void wps_event_handler(__unused void *arg, esp_event_base_t event_base,
+                              int32_t event_id, __unused void *event_data)
+{
+    ESP_LOGD(TAG, "wps event %s %d", event_base, event_id);
+
+    if (event_base == WIFI_EVENT
+        && (event_id == WIFI_EVENT_STA_WPS_ER_SUCCESS || event_id == WIFI_EVENT_STA_WPS_ER_TIMEOUT || event_id == WIFI_EVENT_STA_WPS_ER_FAILED))
+    {
+        status_led_set_interval(status_led, STATUS_LED_CONNECTING_INTERVAL, true);
+        wifi_reconnect_resume();
+    }
+    else if (event_base == WPS_CONFIG_EVENT && event_id == WPS_CONFIG_EVENT_START)
+    {
+        status_led_set_interval(status_led, 100, true);
+    }
+}
+
 static void setup_init()
 {
+    // State
+    state = xEventGroupCreate();
+    assert(state);
+
     // Initialize NVS
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
@@ -112,7 +164,12 @@ static void setup_init()
 
     // Check double reset
     // NOTE this should be called as soon as possible, ideally right after nvs init
+    bool reconfigure = false;
     ESP_ERROR_CHECK(double_reset_start(&reconfigure, DOUBLE_RESET_DEFAULT_TIMEOUT));
+    if (reconfigure)
+    {
+        xEventGroupSetBits(state, STATE_BIT_RECONFIGURE);
+    }
 
     // Load app_config
     app_config_init_defaults(&app_config);
@@ -124,34 +181,12 @@ static void setup_init()
 
     // Status LED
     ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_create(app_config.status_led_pin, app_config.status_led_on_state, &status_led));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_set_interval(status_led, 1000, true));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_set_interval(status_led, STATUS_LED_CONNECTING_INTERVAL, true));
 
     // Events
-    esp_event_handler_register(
-        WIFI_EVENT, ESP_EVENT_ANY_ID, [](void *, esp_event_base_t, int32_t event_id, void *) {
-            switch (event_id)
-            {
-            case WIFI_EVENT_STA_DISCONNECTED:
-                status_led_set_interval(status_led, 1000, true);
-                break;
-
-            case WIFI_EVENT_STA_WPS_ER_SUCCESS:
-            case WIFI_EVENT_STA_WPS_ER_TIMEOUT:
-            case WIFI_EVENT_STA_WPS_ER_FAILED:
-                status_led_set_interval(status_led, 1000, true);
-                wifi_reconnect_resume();
-                break;
-            default:
-                break;
-            }
-        },
-        nullptr);
-    esp_event_handler_register(
-        WPS_CONFIG_EVENT, WPS_CONFIG_EVENT_START, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval(status_led, 100, true); }, nullptr);
-    esp_event_handler_register(
-        AWS_IOT_SHADOW_EVENT, AWS_IOT_SHADOW_EVENT_DISCONNECTED, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval(status_led, 1000, true); }, nullptr);
-    esp_event_handler_register(
-        AWS_IOT_SHADOW_EVENT, AWS_IOT_SHADOW_EVENT_READY, [](void *, esp_event_base_t, int32_t, void *) { status_led_set_interval_for(status_led, 200, false, 700, false); }, nullptr);
+    esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wps_event_handler, nullptr);
+    esp_event_handler_register(WPS_CONFIG_EVENT, WPS_CONFIG_EVENT_START, wps_event_handler, nullptr);
+    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, disconnected_handler, nullptr);
 
     // Dump current config JSON
     // TODO separate method
@@ -350,6 +385,8 @@ static void setup_aws()
 
     // Shadow
     ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_init(mqtt_client, aws_iot_shadow_thing_name(mqtt_cfg.client_id), nullptr, &shadow_client));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_DISCONNECTED, disconnected_handler, nullptr));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_READY, shadow_ready_handler, nullptr));
     ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_GET_ACCEPTED, shadow_event_handler_state_accepted, nullptr));
     ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_UPDATE_ACCEPTED, shadow_event_handler_state_accepted, nullptr));
     ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_ERROR, shadow_event_handler_error, nullptr));
@@ -371,11 +408,15 @@ static void setup_wifi()
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MAX_MODEM));
     ESP_ERROR_CHECK(esp_wifi_start());
-    ESP_ERROR_CHECK(tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, app_info.project_name));
+    if (strlen(app_info.project_name))
+    {
+        ESP_ERROR_CHECK(tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, app_info.project_name));
+    }
 
     ESP_ERROR_CHECK(wifi_reconnect_start()); // NOTE this must be called before connect, otherwise it might miss connected event
 
     // Start WPS if WiFi is not configured, or reconfiguration was requested
+    bool reconfigure = xEventGroupGetBits(state) & STATE_BIT_RECONFIGURE;
     if (!wifi_reconnect_is_ssid_stored() || reconfigure)
     {
         ESP_LOGI(TAG, "reconfigure request detected, starting WPS");
@@ -413,9 +454,12 @@ _Noreturn static void run()
     TickType_t start = xTaskGetTickCount();
     for (;;)
     {
-        // TODO only when mqtt connected
-        status_led_set_interval_for(status_led, 0, true, 20, false);
+        if (!status_led_is_active(status_led))
+        {
+            status_led_set_interval_for(status_led, 0, true, 20, false);
+        }
 
+        // Throttle
         vTaskDelayUntil(&start, 1000 / portTICK_PERIOD_MS);
 
         // Read temperatures
