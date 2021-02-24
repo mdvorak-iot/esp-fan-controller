@@ -444,8 +444,8 @@ static void app_config_add_sensor_to(cJSON *sensors, const app_config_sensor_t *
     cJSON *sensor_obj = cJSON_CreateObject();
     cJSON_AddItemToArray(sensors, sensor_obj);
 
-    json_helper_add_address_to_object(sensor_obj, APP_CONFIG_KEY_SENSOR_OFFSET_C, s->address);
-    cJSON_AddStringToObject(sensor_obj, APP_CONFIG_KEY_SENSOR_OFFSET_C, s->name);
+    json_helper_add_address_to_object(sensor_obj, APP_CONFIG_KEY_SENSOR_ADDRESS, s->address);
+    cJSON_AddStringToObject(sensor_obj, APP_CONFIG_KEY_SENSOR_NAME, s->name);
     cJSON_AddNumberToObject(sensor_obj, APP_CONFIG_KEY_SENSOR_OFFSET_C, s->offset_c);
 }
 
