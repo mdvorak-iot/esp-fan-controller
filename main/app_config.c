@@ -3,6 +3,8 @@
 #include <nvs.h>
 #include <string.h>
 
+static const char TAG[] = "app_config";
+
 #define HANDLE_ERROR(expr, action)  \
     {                               \
         esp_err_t err_ = (expr);    \
@@ -33,6 +35,7 @@ static void nvs_helper_get_gpio_num(nvs_handle_t handle, const char *key, gpio_n
     if (nvs_get_i8(handle, key, &value) == ESP_OK)
     {
         *out_value = (gpio_num_t)value;
+        ESP_LOGD(TAG, "nvs get gpio_num %s: %d", key, value);
         return;
     }
 }
@@ -43,6 +46,7 @@ static void nvs_helper_get_bool(nvs_handle_t handle, const char *key, bool *out_
     if (nvs_get_u8(handle, key, &value) == ESP_OK)
     {
         *out_value = value;
+        ESP_LOGD(TAG, "nvs get bool %s: %d", key, value);
         return;
     }
 }
@@ -53,6 +57,7 @@ static void nvs_helper_get_float(nvs_handle_t handle, char *key, float precision
     if (nvs_get_i32(handle, key, &value) == ESP_OK)
     {
         *out_value = (float)value / precision_factor;
+        ESP_LOGD(TAG, "nvs get float %s: %f", key, *out_value);
         return;
     }
 }
@@ -60,6 +65,7 @@ static void nvs_helper_get_float(nvs_handle_t handle, char *key, float precision
 static esp_err_t nvs_helper_set_float(nvs_handle_t handle, char *key, float precision_factor, float in_value)
 {
     int32_t value = in_value * precision_factor;
+    ESP_LOGD(TAG, "nvs set float %s: %d / %f", key, value, precision_factor);
     return nvs_set_i32(handle, key, value);
 }
 

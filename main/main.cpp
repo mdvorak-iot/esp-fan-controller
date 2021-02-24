@@ -284,11 +284,13 @@ static void mqtt_event_handler(__unused void *handler_args, __unused esp_event_b
 }
 
 static void shadow_event_handler_state_accepted(__unused void *handler_args, __unused esp_event_base_t event_base,
-                                                __unused int32_t event_id, void *event_data)
+                                                int32_t event_id, void *event_data)
 {
+    ESP_LOGD(TAG, "shadow accepted event %d", event_id);
     auto *event = (const aws_iot_shadow_event_data_t *)event_data;
 
     // Ignore if desired is missing in an update - nothing to do here
+    // TODO ignore if desired_config is missing?
     if (!event->desired && event->event_id == AWS_IOT_SHADOW_EVENT_UPDATE_ACCEPTED)
     {
         return;
@@ -302,9 +304,10 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
 
     // Handle change
     bool changed = false;
-    if (event->desired)
+    cJSON *desired_config = cJSON_GetObjectItemCaseSensitive(event->desired, "cfg"); // TODO constant
+    if (desired_config)
     {
-        err = app_config_update_from(&app_config, event->desired, &changed);
+        err = app_config_update_from(&app_config, desired_config, &changed);
         if (err != ESP_OK)
         {
             ESP_LOGW(TAG, "failed to update app_config from a shadow: %d (%s)", err, esp_err_to_name(err));
@@ -346,7 +349,6 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
     // Fill in desired attributes on full refresh
     if (event->event_id == AWS_IOT_SHADOW_EVENT_GET_ACCEPTED)
     {
-        cJSON *desired_config = cJSON_GetObjectItemCaseSensitive(event->desired, "cfg"); // TODO constant
         cJSON *to_desire_config = desired_config ? cJSON_Duplicate(desired_config, true) : cJSON_CreateObject();
         // This does not overwrite existing attributes
         app_config_add_to(&app_config, to_desire_config);
@@ -401,7 +403,7 @@ static void setup_aws()
     mqtt_cfg.cert_pem = AWS_IOT_ROOT_CA;
     mqtt_cfg.cert_len = AWS_IOT_ROOT_CA_LEN;
     ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_mqtt_config_load(&mqtt_cfg));
-    ESP_LOGI(TAG, "mqtt host=%s, port=%u, client_id=%s", mqtt_cfg.host, mqtt_cfg.port, mqtt_cfg.client_id);
+    ESP_LOGI(TAG, "mqtt host=%s, port=%u, client_id=%s", mqtt_cfg.host ? mqtt_cfg.host : "", mqtt_cfg.port, mqtt_cfg.client_id ? mqtt_cfg.client_id : "");
 
     mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
     if (!mqtt_client)
@@ -564,7 +566,12 @@ _Noreturn static void run()
 extern "C" void app_main()
 {
     esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("main", ESP_LOG_DEBUG);
     esp_log_level_set("aws_iot_shadow", ESP_LOG_DEBUG);
+    esp_log_level_set("ds18b20_group", ESP_LOG_DEBUG);
+    esp_log_level_set("fan_control", ESP_LOG_DEBUG);
+    esp_log_level_set("metrics", ESP_LOG_DEBUG);
+    esp_log_level_set("web_server", ESP_LOG_DEBUG);
 
     // Setup
     setup_init();
