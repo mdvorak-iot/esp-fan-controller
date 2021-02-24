@@ -284,7 +284,7 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
 {
     auto *event = (const aws_iot_shadow_event_data_t *)event_data;
 
-    // Ignore if desired is missing in update
+    // Ignore if desired is missing in an update - nothing to do here
     if (!event->desired && event->event_id == AWS_IOT_SHADOW_EVENT_UPDATE_ACCEPTED)
     {
         return;

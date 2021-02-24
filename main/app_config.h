@@ -22,7 +22,7 @@ extern "C" {
  */
 #define APP_CONFIG_MAX_NAME_LENGHT 33
 
-typedef struct __packed app_config_sensor
+typedef struct app_config_sensor
 {
     uint64_t address;
     char name[APP_CONFIG_MAX_NAME_LENGHT];
