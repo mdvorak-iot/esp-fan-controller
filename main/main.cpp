@@ -574,7 +574,7 @@ extern "C" void app_main()
     esp_log_level_set("*", ESP_LOG_INFO);
     esp_log_level_set("main", ESP_LOG_DEBUG);
     esp_log_level_set("aws_iot_shadow", ESP_LOG_DEBUG);
-    esp_log_level_set("ds18b20_group", ESP_LOG_DEBUG);
+    esp_log_level_set("ds18b20_group", ESP_LOG_INFO);
     esp_log_level_set("fan_control", ESP_LOG_DEBUG);
     esp_log_level_set("metrics", ESP_LOG_DEBUG);
     esp_log_level_set("web_server", ESP_LOG_DEBUG);
