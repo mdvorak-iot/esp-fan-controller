@@ -234,17 +234,21 @@ static void setup_sensors()
     ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_set_resolution(sensors, DS18B20_RESOLUTION_12_BIT));
 
     // Initialize config
+    // TODO into separate method
     char addr_str[17] = {};
     for (size_t i = 0; i < sensors->count; i++)
     {
         uint64_t addr = *(uint64_t *)sensors->devices[i].rom_code.bytes;
         app_config_print_address(addr_str, sizeof(addr_str), addr);
         sensor_configs[i].address = addr_str;
+        sensor_configs[i].name = addr_str;
+        sensor_configs[i].offset_c = 0;
 
         for (auto &sensor : app_config.sensors)
         {
-            if (sensor.address == addr)
+            if (addr == sensor.address)
             {
+                ESP_LOGD(TAG, "found sensor %s config: '%s' %.3f", addr_str, sensor.name, sensor.offset_c);
                 sensor_configs[i].name = strlen(sensor.name) ? sensor.name : addr_str; // configured name or address as a name
                 sensor_configs[i].offset_c = sensor.offset_c;
             }
@@ -357,7 +361,7 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
             for (size_t i = 0; i < sensors->count; i++)
             {
                 cJSON *sensor_obj = cJSON_CreateObject();
-                cJSON_AddStringToObject(sensor_obj, APP_CONFIG_KEY_SENSOR_ADDRESS, sensor_configs[i].name.c_str());
+                cJSON_AddStringToObject(sensor_obj, APP_CONFIG_KEY_SENSOR_ADDRESS, sensor_configs[i].address.c_str());
                 cJSON_AddItemToArray(sensors_obj, sensor_obj);
             }
         }
