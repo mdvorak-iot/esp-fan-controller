@@ -26,7 +26,7 @@ typedef struct __packed app_config_sensor
 {
     uint64_t address;
     char name[APP_CONFIG_MAX_NAME_LENGHT];
-    float calibration;
+    float offset_c;
 } app_config_sensor_t;
 
 typedef struct app_config
@@ -68,7 +68,7 @@ char *app_config_print_address(char *buf, size_t buf_len, uint64_t value);
 #define APP_CONFIG_KEY_SENSORS "sensors"
 #define APP_CONFIG_KEY_SENSOR_ADDRESS "addr"
 #define APP_CONFIG_KEY_SENSOR_NAME "name"
-#define APP_CONFIG_KEY_SENSOR_CALIBRATION "cal"
+#define APP_CONFIG_KEY_SENSOR_OFFSET_C "offset_c"
 #define APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS "lo_thresh_c"
 #define APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS "hi_thresh_c"
 #define APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT "lo_thresh_duty"

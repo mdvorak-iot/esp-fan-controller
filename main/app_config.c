@@ -284,10 +284,10 @@ esp_err_t app_config_load(app_config_t *cfg)
 
     for (size_t i = 0; i < APP_CONFIG_SENSORS_MAX_LENGTH; i++)
     {
-        nvs_get_u64(handle, nvs_helper_indexed_key(key_buf, sizeof(key_buf), APP_CONFIG_KEY_SENSORS "%uz" APP_CONFIG_KEY_SENSOR_ADDRESS, i), &cfg->sensors[i].address);
+        nvs_get_u64(handle, nvs_helper_indexed_key(key_buf, sizeof(key_buf), "s%uz" APP_CONFIG_KEY_SENSOR_ADDRESS, i), &cfg->sensors[i].address);
         size_t addr_len = sizeof(cfg->sensors[i].name);
-        nvs_get_str(handle, nvs_helper_indexed_key(key_buf, sizeof(key_buf), APP_CONFIG_KEY_SENSORS "%uz" APP_CONFIG_KEY_SENSOR_NAME, i), cfg->sensors[i].name, &addr_len);
-        nvs_helper_get_float(handle, nvs_helper_indexed_key(key_buf, sizeof(key_buf), APP_CONFIG_KEY_SENSORS "%uz" APP_CONFIG_KEY_SENSOR_CALIBRATION, i), CALIBRATION_PRECISION, &cfg->sensors[i].calibration);
+        nvs_get_str(handle, nvs_helper_indexed_key(key_buf, sizeof(key_buf), "s%uz" APP_CONFIG_KEY_SENSOR_NAME, i), cfg->sensors[i].name, &addr_len);
+        nvs_helper_get_float(handle, nvs_helper_indexed_key(key_buf, sizeof(key_buf), "s%uz" APP_CONFIG_KEY_SENSOR_OFFSET_C, i), CALIBRATION_PRECISION, &cfg->sensors[i].offset_c);
     }
 
     nvs_helper_get_float(handle, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, CELSIUS_PRECISION, &cfg->low_threshold_celsius);
@@ -310,7 +310,7 @@ static esp_err_t app_config_store_sensors(nvs_handle_t handle, const app_config_
         const app_config_sensor_t *s = &cfg->sensors[i];
 
         // Address
-        nvs_helper_indexed_key(key_buf, sizeof(key_buf), APP_CONFIG_KEY_SENSORS "%uz" APP_CONFIG_KEY_SENSOR_ADDRESS, i);
+        nvs_helper_indexed_key(key_buf, sizeof(key_buf), "s%uz" APP_CONFIG_KEY_SENSOR_ADDRESS, i);
         if (s->address != 0)
         {
             HANDLE_ERROR(err = nvs_set_u64(handle, key_buf, s->address), return err);
@@ -321,7 +321,7 @@ static esp_err_t app_config_store_sensors(nvs_handle_t handle, const app_config_
         }
 
         // Name
-        nvs_helper_indexed_key(key_buf, sizeof(key_buf), APP_CONFIG_KEY_SENSORS "%uz" APP_CONFIG_KEY_SENSOR_NAME, i);
+        nvs_helper_indexed_key(key_buf, sizeof(key_buf), "s%uz" APP_CONFIG_KEY_SENSOR_NAME, i);
         if (strlen(s->name))
         {
             HANDLE_ERROR(err = nvs_set_str(handle, key_buf, s->name), return err);
@@ -332,10 +332,10 @@ static esp_err_t app_config_store_sensors(nvs_handle_t handle, const app_config_
         }
 
         // Calibration
-        nvs_helper_indexed_key(key_buf, sizeof(key_buf), APP_CONFIG_KEY_SENSORS "%uz" APP_CONFIG_KEY_SENSOR_CALIBRATION, i);
-        if (s->calibration != 0.0f)
+        nvs_helper_indexed_key(key_buf, sizeof(key_buf), "s%uz" APP_CONFIG_KEY_SENSOR_OFFSET_C, i);
+        if (s->offset_c != 0.0f)
         {
-            HANDLE_ERROR(err = nvs_helper_set_float(handle, key_buf, CALIBRATION_PRECISION, s->calibration), return err);
+            HANDLE_ERROR(err = nvs_helper_set_float(handle, key_buf, CALIBRATION_PRECISION, s->offset_c), return err);
         }
         else
         {
@@ -415,7 +415,7 @@ esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *cha
             cJSON *sensor = cJSON_GetArrayItem(sensors, i);
             json_helper_set_address(sensor, APP_CONFIG_KEY_SENSOR_ADDRESS, changed, &cfg->sensors[i].address);
             json_helper_set_string(sensor, APP_CONFIG_KEY_SENSOR_NAME, changed, cfg->sensors[i].name, sizeof(cfg->sensors[i].address));
-            json_helper_set_float(sensor, APP_CONFIG_KEY_SENSOR_CALIBRATION, changed, &cfg->sensors[i].calibration);
+            json_helper_set_float(sensor, APP_CONFIG_KEY_SENSOR_OFFSET_C, changed, &cfg->sensors[i].offset_c);
         }
     }
 
@@ -430,7 +430,7 @@ esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *cha
 static void app_config_add_sensor_to(cJSON *sensors, const app_config_sensor_t *s)
 {
     // Ignore empty
-    if (s->address == 0 && strlen(s->name) == 0 && s->calibration == 0.0f)
+    if (s->address == 0 && strlen(s->name) == 0 && s->offset_c == 0.0f)
     {
         return;
     }
@@ -438,9 +438,9 @@ static void app_config_add_sensor_to(cJSON *sensors, const app_config_sensor_t *
     cJSON *sensor_obj = cJSON_CreateObject();
     cJSON_AddItemToArray(sensors, sensor_obj);
 
-    json_helper_add_address_to_object(sensor_obj, APP_CONFIG_KEY_SENSOR_CALIBRATION, s->address);
-    cJSON_AddStringToObject(sensor_obj, APP_CONFIG_KEY_SENSOR_CALIBRATION, s->name);
-    cJSON_AddNumberToObject(sensor_obj, APP_CONFIG_KEY_SENSOR_CALIBRATION, s->calibration);
+    json_helper_add_address_to_object(sensor_obj, APP_CONFIG_KEY_SENSOR_OFFSET_C, s->address);
+    cJSON_AddStringToObject(sensor_obj, APP_CONFIG_KEY_SENSOR_OFFSET_C, s->name);
+    cJSON_AddNumberToObject(sensor_obj, APP_CONFIG_KEY_SENSOR_OFFSET_C, s->offset_c);
 }
 
 esp_err_t app_config_add_to(const app_config_t *cfg, cJSON *data)

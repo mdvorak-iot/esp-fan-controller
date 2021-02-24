@@ -246,7 +246,7 @@ static void setup_sensors()
             if (sensor.address == addr)
             {
                 sensor_configs[i].name = strlen(sensor.name) ? sensor.name : addr_str; // configured name or address as a name
-                sensor_configs[i].offset_c = sensor.calibration;
+                sensor_configs[i].offset_c = sensor.offset_c;
             }
         }
     }
