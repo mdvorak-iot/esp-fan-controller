@@ -234,18 +234,22 @@ static void setup_sensors()
     ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_set_resolution(sensors, DS18B20_RESOLUTION_12_BIT));
 
     // Initialize config
+    char addr_str[17] = {};
     for (size_t i = 0; i < sensors->count; i++)
     {
-        char addr[17];
-        owb_string_from_rom_code(sensors->devices[i].rom_code, addr, sizeof(addr));
-        sensor_configs[i].address = addr;
-        sensor_configs[i].name = addr;
-        sensor_configs[i].offset_c = 0;
-    }
+        uint64_t addr = *(uint64_t *)sensors->devices[i].rom_code.bytes;
+        app_config_print_address(addr_str, sizeof(addr_str), addr);
+        sensor_configs[i].address = addr_str;
 
-    // TODO test
-    sensor_configs[0].offset_c = 0.45;
-    sensor_configs[1].offset_c = -0.45;
+        for (auto &sensor : app_config.sensors)
+        {
+            if (sensor.address == addr)
+            {
+                sensor_configs[i].name = strlen(sensor.name) ? sensor.name : addr_str; // configured name or address as a name
+                sensor_configs[i].offset_c = sensor.calibration;
+            }
+        }
+    }
 
     // Temperature metrics
     metrics_register_callback([](std::ostream &m) {
