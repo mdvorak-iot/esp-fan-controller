@@ -364,6 +364,12 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
             {
                 cJSON *sensor_obj = cJSON_CreateObject();
                 cJSON_AddStringToObject(sensor_obj, APP_CONFIG_KEY_SENSOR_ADDRESS, sensor_configs[i].address.c_str());
+
+                if (memcmp(sensors->devices[i].rom_code.bytes, &app_config.primary_sensor_address, sizeof(uint64_t)) == 0)
+                {
+                    cJSON_AddBoolToObject(sensor_obj, "is_primary", true);
+                }
+
                 cJSON_AddItemToArray(sensors_obj, sensor_obj);
             }
         }
