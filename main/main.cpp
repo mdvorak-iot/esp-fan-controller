@@ -33,7 +33,7 @@ static const auto STATE_BIT_SHADOW_READY = BIT2;
 // Configuration
 static EventGroupHandle_t state;
 static app_config_t app_config = {};
-static status_led_handle_t status_led;
+static status_led_handle_ptr status_led;
 static esp_mqtt_client_handle_t mqtt_client = nullptr;
 static aws_iot_shadow_handle_t shadow_client = nullptr;
 static owb_rmt_driver_info owb_driver = {};
