@@ -35,7 +35,7 @@ static EventGroupHandle_t state;
 static app_config_t app_config = {};
 static status_led_handle_ptr status_led;
 static esp_mqtt_client_handle_t mqtt_client = nullptr;
-static aws_iot_shadow_handle_t shadow_client = nullptr;
+static aws_iot_shadow_handle_ptr shadow_client = nullptr;
 static owb_rmt_driver_info owb_driver = {};
 static ds18b20_group_handle_t sensors = nullptr;
 static struct ds18b20_config
@@ -287,7 +287,7 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
                                                 int32_t event_id, void *event_data)
 {
     ESP_LOGD(TAG, "shadow accepted event %d", event_id);
-    auto *event = (const aws_iot_shadow_event_data_t *)event_data;
+    auto *event = (const struct aws_iot_shadow_event_data *)event_data;
 
     // Ignore if desired is missing in an update - nothing to do here
     // TODO ignore if desired_config is missing?
@@ -398,7 +398,7 @@ cleanup:
 static void shadow_event_handler_error(__unused void *handler_args, __unused esp_event_base_t event_base,
                                        __unused int32_t event_id, void *event_data)
 {
-    auto *event = (const aws_iot_shadow_event_data_t *)event_data;
+    auto *event = (const struct aws_iot_shadow_event_data *)event_data;
     ESP_LOGW(TAG, "shadow error %d %s", event->error->code, event->error->message);
 }
 
