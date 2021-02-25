@@ -225,10 +225,10 @@ static void json_helper_set_string(const cJSON *data, char *key, bool *changed, 
     cJSON *value_obj = cJSON_GetObjectItemCaseSensitive(data, key);
     if (cJSON_IsString(value_obj))
     {
-        if (strncmp(out_value, value_obj->valuestring, out_value_len) == 0)
+        if (strncmp(out_value, value_obj->valuestring, out_value_len) != 0)
         {
             // Value changed
-            // NOTE skips null terminator if max len is reached, so -1
+            // NOTE strncpy skips null terminator if max len is reached, so -1
             strncpy(out_value, value_obj->valuestring, out_value_len - 1);
             *changed = true;
         }
@@ -420,7 +420,7 @@ esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *cha
         {
             cJSON *sensor = cJSON_GetArrayItem(sensors, i);
             json_helper_set_address(sensor, APP_CONFIG_KEY_SENSOR_ADDRESS, changed, &cfg->sensors[i].address);
-            json_helper_set_string(sensor, APP_CONFIG_KEY_SENSOR_NAME, changed, cfg->sensors[i].name, sizeof(cfg->sensors[i].address));
+            json_helper_set_string(sensor, APP_CONFIG_KEY_SENSOR_NAME, changed, cfg->sensors[i].name, sizeof(cfg->sensors[i].name));
             json_helper_set_float(sensor, APP_CONFIG_KEY_SENSOR_OFFSET_C, changed, &cfg->sensors[i].offset_c);
         }
     }
