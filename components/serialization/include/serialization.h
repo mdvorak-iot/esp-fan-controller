@@ -8,15 +8,10 @@
 extern "C" {
 #endif
 
-struct serialization_functions;
-
-struct serialization_context
-{
-    const struct serialization_functions *functions;
-};
+struct serialization_context;
 
 void serialization_free_context(struct serialization_context *ctx);
-struct serialization_context *serialization_nested_context(const struct serialization_context *ctx, const char *key);
+//struct serialization_context *serialization_nested_context(const struct serialization_context *ctx, const char *key);
 
 esp_err_t serialization_get_i8(const struct serialization_context *ctx, const char *key, int8_t *out_value);
 esp_err_t serialization_get_u8(const struct serialization_context *ctx, const char *key, uint8_t *value);

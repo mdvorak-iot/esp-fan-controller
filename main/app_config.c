@@ -40,17 +40,6 @@ static void nvs_helper_get_gpio_num(nvs_handle_t handle, const char *key, gpio_n
     }
 }
 
-static void nvs_helper_get_bool(nvs_handle_t handle, const char *key, bool *out_value)
-{
-    uint8_t value;
-    if (nvs_get_u8(handle, key, &value) == ESP_OK)
-    {
-        *out_value = value;
-        ESP_LOGD(TAG, "nvs get bool %s: %d", key, value);
-        return;
-    }
-}
-
 static void nvs_helper_get_float(nvs_handle_t handle, char *key, float precision_factor, float *out_value)
 {
     int32_t value;
@@ -252,7 +241,7 @@ void app_config_init_defaults(app_config_t *cfg)
     cfg->high_threshold_duty_percent = 100;
 }
 
-esp_err_t app_config_load(app_config_t *cfg)
+esp_err_t app_config_load(const struct serialization_context *ctx, app_config_t *cfg)
 {
     if (cfg == NULL)
     {
@@ -276,10 +265,10 @@ esp_err_t app_config_load(app_config_t *cfg)
     char key_buf[16] = {}; // max 15 chars
 
     // Load
-    nvs_helper_get_gpio_num(handle, APP_CONFIG_KEY_STATUS_LED_PIN, &cfg->status_led_pin);
-    nvs_helper_get_bool(handle, APP_CONFIG_KEY_STATUS_LED_ON_STATE, &cfg->status_led_on_state);
-    nvs_helper_get_gpio_num(handle, APP_CONFIG_KEY_PWM_PIN, &cfg->pwm_pin);
-    nvs_helper_get_bool(handle, APP_CONFIG_KEY_PWM_INVERTED_DUTY, &cfg->pwm_inverted_duty);
+    serialization_get_i32(ctx, APP_CONFIG_KEY_STATUS_LED_PIN, &cfg->status_led_pin);
+    serialization_get_bool(ctx, APP_CONFIG_KEY_STATUS_LED_ON_STATE, &cfg->status_led_on_state);
+    serialization_get_i32(ctx, APP_CONFIG_KEY_PWM_PIN, &cfg->pwm_pin);
+    serialization_get_bool(ctx, APP_CONFIG_KEY_PWM_INVERTED_DUTY, &cfg->pwm_inverted_duty);
 
     nvs_get_blob(handle, APP_CONFIG_KEY_RPM_PINS, rpm_pins, &rpm_pins_len);
     for (size_t i = 0; i < APP_CONFIG_RPM_MAX_LENGTH; i++)
