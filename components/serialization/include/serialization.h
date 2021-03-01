@@ -18,6 +18,11 @@ struct serialization_context
 void serialization_free_context(struct serialization_context *ctx);
 struct serialization_context *serialization_nested_context(const struct serialization_context *ctx, const char *key);
 
+void serialization_enter_nested_context(struct serialization_context *ctx, const char *key);
+void serialization_enter_list_context(struct serialization_context *ctx, const char *key);
+void serialization_enter_list_item(struct serialization_context *ctx);
+void serialization_enter_leave_context(struct serialization_context *ctx);
+
 esp_err_t serialization_get_i8(const struct serialization_context *ctx, const char *key, int8_t *out_value);
 esp_err_t serialization_get_u8(const struct serialization_context *ctx, const char *key, uint8_t *value);
 esp_err_t serialization_get_i16(const struct serialization_context *ctx, const char *key, int16_t *out_value);

@@ -116,7 +116,7 @@ esp_err_t serialization_set_u64(const struct serialization_context *ctx, const c
     return ctx->functions->set_u64(ctx, key, value);
 }
 
-esp_err_t serialization_set_bool(const struct serialization_context *ctx, const char *key, bool *value)
+esp_err_t serialization_set_bool(const struct serialization_context *ctx, const char *key, bool value)
 {
     return ctx->functions->set_bool(ctx, key, value);
 }
