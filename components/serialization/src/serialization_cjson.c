@@ -2,16 +2,12 @@
 #include "serialization_functions.h"
 #include <string.h>
 
-struct serialization_context_cjson
-{
-    struct serialization_context base;
-    cJSON *obj;
-};
 
 struct serialization_context *serialization_context_create_cjson(cJSON *obj)
 {
     struct serialization_context_cjson *ctx = (struct serialization_context_cjson *)malloc(sizeof(*ctx));
     ctx->base.functions = &serialization_functions_cjson;
+    ctx->obj = obj;
 
     return &ctx->base;
 }

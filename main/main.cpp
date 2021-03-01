@@ -14,6 +14,8 @@
 #include <freertos/event_groups.h>
 #include <mqtt_client.h>
 #include <nvs_flash.h>
+#include <serialization_cjson.h>
+#include <serialization_nvs.h>
 #include <status_led.h>
 #include <wifi_reconnect.h>
 #include <wps_config.h>
@@ -173,10 +175,25 @@ static void setup_init()
 
     // Load app_config
     app_config_init_defaults(&app_config);
-    err = app_config_load(&app_config);
-    if (err != ESP_OK)
+
+    // TODO to method
+    nvs_handle_t handle = 0;
+    err = nvs_open(APP_CONFIG_NVS_NAME, NVS_READONLY, &handle);
+    if (err == ESP_OK)
     {
-        ESP_LOGW(TAG, "failed to load app_config, using defaults");
+        serialization_context_nvs ctx = SERIALIZATION_CONTEXT_NVS_INITIALIZE(handle);
+        err = app_config_get(&ctx.base, &app_config);
+        if (err != ESP_OK)
+        {
+            // TODO dedup
+            ESP_LOGW(TAG, "failed to load app_config, using defaults: %d (%s)", err, esp_err_to_name(err));
+        }
+        nvs_close(handle);
+    }
+    else
+    {
+        // TODO dedup
+        ESP_LOGW(TAG, "failed to load app_config, using defaults: %d (%s)", err, esp_err_to_name(err));
     }
 
     // Status LED

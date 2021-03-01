@@ -2,13 +2,6 @@
 #include "serialization_functions.h"
 #include <nvs.h>
 
-struct serialization_context_nvs
-{
-    struct serialization_context base;
-    nvs_handle_t handle;
-    char prefix[15]; // max length is 15 + null, but it does not make sense to have a prefix of max length
-};
-
 struct serialization_context *serialization_context_create_nvs(nvs_handle_t handle)
 {
     struct serialization_context_nvs *ctx = (struct serialization_context_nvs *)malloc(sizeof(*ctx));

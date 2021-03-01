@@ -252,20 +252,21 @@ void app_config_init_defaults(app_config_t *cfg)
     cfg->high_threshold_duty_percent = 100;
 }
 
-esp_err_t app_config_load(app_config_t *cfg)
+esp_err_t app_config_get(struct serialization_context *ctx, app_config_t *cfg)
 {
-    if (cfg == NULL)
+    if (ctx == NULL || cfg == NULL)
     {
         return ESP_ERR_INVALID_ARG;
     }
 
     // Open
-    nvs_handle_t handle = 0;
-    esp_err_t err = nvs_open(APP_CONFIG_NVS_NAME, NVS_READONLY, &handle);
-    if (err != ESP_OK)
-    {
-        return err;
-    }
+    // TODO
+    //    nvs_handle_t handle = 0;
+    //    esp_err_t err = nvs_open(APP_CONFIG_NVS_NAME, NVS_READONLY, &handle);
+    //    if (err != ESP_OK)
+    //    {
+    //        return err;
+    //    }
 
     // Prepare
     size_t rpm_pins_len = APP_CONFIG_RPM_MAX_LENGTH;
@@ -276,30 +277,31 @@ esp_err_t app_config_load(app_config_t *cfg)
     char key_buf[16] = {}; // max 15 chars
 
     // Load
-    nvs_helper_get_gpio_num(handle, APP_CONFIG_KEY_STATUS_LED_PIN, &cfg->status_led_pin);
-    nvs_helper_get_bool(handle, APP_CONFIG_KEY_STATUS_LED_ON_STATE, &cfg->status_led_on_state);
-    nvs_helper_get_gpio_num(handle, APP_CONFIG_KEY_PWM_PIN, &cfg->pwm_pin);
-    nvs_helper_get_bool(handle, APP_CONFIG_KEY_PWM_INVERTED_DUTY, &cfg->pwm_inverted_duty);
+    serialization_get_i32(ctx, APP_CONFIG_KEY_STATUS_LED_PIN, &cfg->status_led_pin);
+    serialization_get_bool(ctx, APP_CONFIG_KEY_STATUS_LED_ON_STATE, &cfg->status_led_on_state);
+    serialization_get_i32(ctx, APP_CONFIG_KEY_PWM_PIN, &cfg->pwm_pin);
+    serialization_get_bool(ctx, APP_CONFIG_KEY_PWM_INVERTED_DUTY, &cfg->pwm_inverted_duty);
 
-    nvs_get_blob(handle, APP_CONFIG_KEY_RPM_PINS, rpm_pins, &rpm_pins_len);
+    // TODO
+    serialization_get_blob(ctx, APP_CONFIG_KEY_RPM_PINS, rpm_pins, &rpm_pins_len);
     for (size_t i = 0; i < APP_CONFIG_RPM_MAX_LENGTH; i++)
         cfg->rpm_pins[i] = (gpio_num_t)rpm_pins[i];
 
-    nvs_helper_get_gpio_num(handle, APP_CONFIG_KEY_SENSORS_PIN, &cfg->sensors_pin);
-    nvs_get_u64(handle, APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS, &cfg->primary_sensor_address);
+    serialization_get_i32(ctx, APP_CONFIG_KEY_SENSORS_PIN, &cfg->sensors_pin);
+    serialization_get_u64(ctx, APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS, &cfg->primary_sensor_address);
 
     for (size_t i = 0; i < APP_CONFIG_SENSORS_MAX_LENGTH; i++)
     {
         nvs_get_u64(handle, nvs_helper_indexed_key(key_buf, sizeof(key_buf), "s%uz" APP_CONFIG_KEY_SENSOR_ADDRESS, i), &cfg->sensors[i].address);
         size_t addr_len = sizeof(cfg->sensors[i].name);
-        nvs_get_str(handle, nvs_helper_indexed_key(key_buf, sizeof(key_buf), "s%uz" APP_CONFIG_KEY_SENSOR_NAME, i), cfg->sensors[i].name, &addr_len);
+        f->get_str(handle, nvs_helper_indexed_key(key_buf, sizeof(key_buf), "s%uz" APP_CONFIG_KEY_SENSOR_NAME, i), cfg->sensors[i].name, &addr_len);
         nvs_helper_get_float(handle, nvs_helper_indexed_key(key_buf, sizeof(key_buf), "s%uz" APP_CONFIG_KEY_SENSOR_OFFSET_C, i), CALIBRATION_PRECISION, &cfg->sensors[i].offset_c);
     }
 
     nvs_helper_get_float(handle, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, CELSIUS_PRECISION, &cfg->low_threshold_celsius);
     nvs_helper_get_float(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, CELSIUS_PRECISION, &cfg->high_threshold_celsius);
-    nvs_get_u8(handle, APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, &cfg->low_threshold_duty_percent);
-    nvs_get_u8(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, &cfg->high_threshold_duty_percent);
+    serialization_get_u8(ctx, APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, &cfg->low_threshold_duty_percent);
+    serialization_get_u8(ctx, APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, &cfg->high_threshold_duty_percent);
 
     // Close and exit
     nvs_close(handle);
@@ -352,9 +354,9 @@ static esp_err_t app_config_store_sensors(nvs_handle_t handle, const app_config_
     return ESP_OK;
 }
 
-esp_err_t app_config_store(const app_config_t *cfg)
+esp_err_t app_config_set(struct serialization_context *ctx, void *handle, const app_config_t *cfg)
 {
-    if (cfg == NULL)
+    if (f == NULL || handle == NULL || cfg == NULL)
     {
         return ESP_ERR_INVALID_ARG;
     }
@@ -375,18 +377,18 @@ esp_err_t app_config_store(const app_config_t *cfg)
     }
 
     // Store
-    HANDLE_ERROR(err = nvs_set_i8(handle, APP_CONFIG_KEY_STATUS_LED_PIN, cfg->status_led_pin), goto exit);
-    HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_STATUS_LED_ON_STATE, cfg->status_led_on_state), goto exit);
-    HANDLE_ERROR(err = nvs_set_i8(handle, APP_CONFIG_KEY_PWM_PIN, cfg->pwm_pin), goto exit);
-    HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_PWM_INVERTED_DUTY, cfg->pwm_inverted_duty), goto exit);
+    HANDLE_ERROR(err = f->set_gpio_num(handle, APP_CONFIG_KEY_STATUS_LED_PIN, cfg->status_led_pin), goto exit);
+    HANDLE_ERROR(err = f->set_bool(handle, APP_CONFIG_KEY_STATUS_LED_ON_STATE, cfg->status_led_on_state), goto exit);
+    HANDLE_ERROR(err = f->set_gpio_num(handle, APP_CONFIG_KEY_PWM_PIN, cfg->pwm_pin), goto exit);
+    HANDLE_ERROR(err = f->set_bool(handle, APP_CONFIG_KEY_PWM_INVERTED_DUTY, cfg->pwm_inverted_duty), goto exit);
     HANDLE_ERROR(err = nvs_set_blob(handle, APP_CONFIG_KEY_RPM_PINS, rpm_pins, sizeof(rpm_pins)), goto exit);
-    HANDLE_ERROR(err = nvs_set_i8(handle, APP_CONFIG_KEY_SENSORS_PIN, cfg->sensors_pin), goto exit);
+    HANDLE_ERROR(err = f->set_gpio_num(handle, APP_CONFIG_KEY_SENSORS_PIN, cfg->sensors_pin), goto exit);
     HANDLE_ERROR(err = nvs_set_u64(handle, APP_CONFIG_KEY_PRIMARY_SENSOR_ADDRESS, cfg->primary_sensor_address), goto exit);
     HANDLE_ERROR(err = app_config_store_sensors(handle, cfg), goto exit);
     HANDLE_ERROR(err = nvs_helper_set_float(handle, APP_CONFIG_KEY_LOW_THRESHOLD_CELSIUS, CELSIUS_PRECISION, cfg->low_threshold_celsius), goto exit);
     HANDLE_ERROR(err = nvs_helper_set_float(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, CELSIUS_PRECISION, cfg->high_threshold_celsius), goto exit);
-    HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, cfg->low_threshold_duty_percent), goto exit);
-    HANDLE_ERROR(err = nvs_set_u8(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, cfg->high_threshold_duty_percent), goto exit);
+    HANDLE_ERROR(err = f->set_u8(handle, APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, cfg->low_threshold_duty_percent), goto exit);
+    HANDLE_ERROR(err = f->set_u8(handle, APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, cfg->high_threshold_duty_percent), goto exit);
 
     // Commit
     err = nvs_commit(handle);

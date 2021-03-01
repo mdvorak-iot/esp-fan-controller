@@ -2,6 +2,7 @@
 
 #include <cJSON.h>
 #include <driver/gpio.h>
+#include <serialization.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,9 +48,9 @@ typedef struct app_config
 
 void app_config_init_defaults(app_config_t *cfg);
 
-esp_err_t app_config_load(app_config_t *cfg);
+esp_err_t app_config_get(struct serialization_context *ctx, app_config_t *cfg);
 
-esp_err_t app_config_store(const app_config_t *cfg);
+esp_err_t app_config_set(struct serialization_context *ctx, const app_config_t *cfg);
 
 esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *changed);
 
