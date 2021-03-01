@@ -34,11 +34,6 @@ esp_err_t serialization_nvs_set_u8(const struct serialization_context *ctx, cons
     return nvs_set_u8(get_handle(ctx), key, value);
 }
 
-esp_err_t serialization_nvs_set_gpio_num(const struct serialization_context *ctx, const char *key, gpio_num_t value)
-{
-    return nvs_set_i8(get_handle(ctx), key, (int8_t)value);
-}
-
 esp_err_t serialization_nvs_set_str(const struct serialization_context *ctx, const char *key, const char *value)
 {
     return nvs_set_str(get_handle(ctx), key, value);
@@ -54,17 +49,6 @@ esp_err_t serialization_nvs_get_u8(const struct serialization_context *ctx, cons
     return nvs_get_u8(get_handle(ctx), key, value);
 }
 
-esp_err_t serialization_nvs_get_gpio_num(const struct serialization_context *ctx, const char *key, gpio_num_t *value)
-{
-    int8_t value_int;
-    esp_err_t err = nvs_get_i8(get_handle(ctx), key, &value_int);
-    if (err == ESP_OK)
-    {
-        *value = (gpio_num_t)value_int;
-    }
-    return err;
-}
-
 esp_err_t serialization_nvs_get_str(const struct serialization_context *ctx, const char *key, char *value, size_t *value_len)
 {
     return nvs_get_str(get_handle(ctx), key, value, value_len);
@@ -74,10 +58,8 @@ const struct serialization_functions serialization_functions_nvs = {
     .free_context = free,
     .set_i8 = serialization_nvs_set_i8,
     .set_u8 = serialization_nvs_set_u8,
-    .set_gpio_num = serialization_nvs_set_gpio_num,
     .set_str = serialization_nvs_set_str,
     .get_i8 = serialization_nvs_get_i8,
     .get_u8 = serialization_nvs_get_u8,
-    .get_gpio_num = serialization_nvs_get_gpio_num,
     .get_str = serialization_nvs_get_str,
 };

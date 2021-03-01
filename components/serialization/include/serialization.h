@@ -29,7 +29,6 @@ esp_err_t serialization_get_u64(const struct serialization_context *ctx, const c
 esp_err_t serialization_get_bool(const struct serialization_context *ctx, const char *key, bool *value);
 esp_err_t serialization_get_float(const struct serialization_context *ctx, const char *key, float *out_value);
 esp_err_t serialization_get_double(const struct serialization_context *ctx, const char *key, double *out_value);
-esp_err_t serialization_get_gpio_num(const struct serialization_context *ctx, const char *key, gpio_num_t *out_value);
 esp_err_t serialization_get_str(const struct serialization_context *ctx, const char *key, char *out_value, size_t *out_value_len);
 esp_err_t serialization_get_blob(const struct serialization_context *ctx, const char *key, uint8_t *out_value, size_t *out_value_len);
 
@@ -44,7 +43,6 @@ esp_err_t serialization_set_u64(const struct serialization_context *ctx, const c
 esp_err_t serialization_set_bool(const struct serialization_context *ctx, const char *key, bool value);
 esp_err_t serialization_set_float(const struct serialization_context *ctx, const char *key, float value);
 esp_err_t serialization_set_double(const struct serialization_context *ctx, const char *key, double value);
-esp_err_t serialization_set_gpio_num(const struct serialization_context *ctx, const char *key, gpio_num_t value);
 esp_err_t serialization_set_str(const struct serialization_context *ctx, const char *key, const char *value);
 esp_err_t serialization_set_blob(const struct serialization_context *ctx, const char *key, const uint8_t *value, size_t value_len);
 

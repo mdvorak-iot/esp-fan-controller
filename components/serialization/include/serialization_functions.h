@@ -1,7 +1,6 @@
 #pragma once
 
 #include <esp_err.h>
-#include <hal/gpio_types.h>
 #include <stdbool.h>
 
 #ifdef __cplusplus
@@ -24,7 +23,6 @@ typedef esp_err_t (*serialization_func_get_u64)(const struct serialization_conte
 typedef esp_err_t (*serialization_func_get_bool)(const struct serialization_context *ctx, const char *key, bool *out_value);
 typedef esp_err_t (*serialization_func_get_float)(const struct serialization_context *ctx, const char *key, float *out_value);
 typedef esp_err_t (*serialization_func_get_double)(const struct serialization_context *ctx, const char *key, double *out_value);
-typedef esp_err_t (*serialization_func_get_gpio_num)(const struct serialization_context *ctx, const char *key, gpio_num_t *out_value);
 typedef esp_err_t (*serialization_func_get_str)(const struct serialization_context *ctx, const char *key, char *out_value, size_t *out_value_len);
 typedef esp_err_t (*serialization_func_get_blob)(const struct serialization_context *ctx, const char *key, uint8_t *out_value, size_t *out_value_len);
 
@@ -39,7 +37,6 @@ typedef esp_err_t (*serialization_func_set_u64)(const struct serialization_conte
 typedef esp_err_t (*serialization_func_set_bool)(const struct serialization_context *ctx, const char *key, bool value);
 typedef esp_err_t (*serialization_func_set_float)(const struct serialization_context *ctx, const char *key, float value);
 typedef esp_err_t (*serialization_func_set_double)(const struct serialization_context *ctx, const char *key, double value);
-typedef esp_err_t (*serialization_func_set_gpio_num)(const struct serialization_context *ctx, const char *key, gpio_num_t value);
 typedef esp_err_t (*serialization_func_set_str)(const struct serialization_context *ctx, const char *key, const char *value);
 typedef esp_err_t (*serialization_func_set_blob)(const struct serialization_context *ctx, const char *key, const uint8_t *value, size_t value_len);
 
@@ -59,7 +56,6 @@ struct serialization_functions
     serialization_func_get_bool get_bool;
     serialization_func_get_float get_float;
     serialization_func_get_double get_double;
-    serialization_func_get_gpio_num get_gpio_num;
     serialization_func_get_str get_str;
     serialization_func_get_blob get_blob;
 
@@ -74,7 +70,6 @@ struct serialization_functions
     serialization_func_set_bool set_bool;
     serialization_func_set_float set_float;
     serialization_func_set_double set_double;
-    serialization_func_set_gpio_num set_gpio_num;
     serialization_func_set_str set_str;
     serialization_func_set_blob set_blob;
 };

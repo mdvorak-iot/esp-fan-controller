@@ -66,11 +66,6 @@ esp_err_t serialization_get_double(const struct serialization_context *ctx, cons
     return ctx->functions->get_double(ctx, key, out_value);
 }
 
-esp_err_t serialization_get_gpio_num(const struct serialization_context *ctx, const char *key, gpio_num_t *out_value)
-{
-    return ctx->functions->get_gpio_num(ctx, key, out_value);
-}
-
 esp_err_t serialization_get_str(const struct serialization_context *ctx, const char *key, char *out_value, size_t *out_value_len)
 {
     return ctx->functions->get_str(ctx, key, out_value, out_value_len);
@@ -134,11 +129,6 @@ esp_err_t serialization_set_float(const struct serialization_context *ctx, const
 esp_err_t serialization_set_double(const struct serialization_context *ctx, const char *key, double value)
 {
     return ctx->functions->set_double(ctx, key, value);
-}
-
-esp_err_t serialization_set_gpio_num(const struct serialization_context *ctx, const char *key, gpio_num_t value)
-{
-    return ctx->functions->set_gpio_num(ctx, key, value);
 }
 
 esp_err_t serialization_set_str(const struct serialization_context *ctx, const char *key, const char *value)

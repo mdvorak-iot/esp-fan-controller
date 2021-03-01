@@ -31,11 +31,6 @@ esp_err_t serialization_cjson_set_u8(const struct serialization_context *ctx, co
     return cJSON_AddNumberToObject(get_cjson(ctx), key, value) ? ESP_OK : ESP_FAIL;
 }
 
-esp_err_t serialization_cjson_set_gpio_num(const struct serialization_context *ctx, const char *key, gpio_num_t value)
-{
-    return cJSON_AddNumberToObject(get_cjson(ctx), key, value) ? ESP_OK : ESP_FAIL;
-}
-
 esp_err_t serialization_cjson_set_str(const struct serialization_context *ctx, const char *key, const char *value)
 {
     return cJSON_AddStringToObject(get_cjson(ctx), key, value) ? ESP_OK : ESP_FAIL;
@@ -73,17 +68,6 @@ esp_err_t serialization_cjson_get_u8(const struct serialization_context *ctx, co
     return ESP_ERR_NOT_FOUND;
 }
 
-esp_err_t serialization_cjson_get_gpio_num(const struct serialization_context *ctx, const char *key, gpio_num_t *value)
-{
-    int8_t value_int;
-    esp_err_t err = serialization_cjson_get_i8(ctx, key, &value_int);
-    if (err == ESP_OK)
-    {
-        *value = (gpio_num_t)value_int;
-    }
-    return err;
-}
-
 esp_err_t serialization_cjson_get_str(const struct serialization_context *ctx, const char *key, char *value, size_t *value_len)
 {
     cJSON *obj = cJSON_GetObjectItemCaseSensitive(get_cjson(ctx), key);
@@ -112,10 +96,8 @@ const struct serialization_functions serialization_functions_cjson = {
     .free_context = free,
     .set_i8 = serialization_cjson_set_i8,
     .set_u8 = serialization_cjson_set_u8,
-    .set_gpio_num = serialization_cjson_set_gpio_num,
     .set_str = serialization_cjson_set_str,
     .get_i8 = serialization_cjson_get_i8,
     .get_u8 = serialization_cjson_get_u8,
-    .get_gpio_num = serialization_cjson_get_gpio_num,
     .get_str = serialization_cjson_get_str,
 };
