@@ -289,22 +289,30 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
     ESP_LOGD(TAG, "shadow accepted event %d", event_id);
     auto *event = (const struct aws_iot_shadow_event_data *)event_data;
 
+    esp_err_t err = ESP_OK;
+
+    // Parse
+    // TODO use with length in newer cjson version
+    cJSON *root = cJSON_ParseWithOpts(event->data, nullptr, false);
+    cJSON *desired = cJSON_GetObjectItemCaseSensitive(root, AWS_IOT_SHADOW_JSON_DESIRED);
+
     // Ignore if desired is missing in an update - nothing to do here
-    // TODO ignore if desired_config is missing?
-    if (!event->desired && event->event_id == AWS_IOT_SHADOW_EVENT_UPDATE_ACCEPTED)
+    if (!desired && event->event_id == AWS_IOT_SHADOW_EVENT_UPDATE_ACCEPTED)
     {
+        cJSON_Delete(root);
         return;
     }
 
     // New status
-    esp_err_t err = ESP_OK;
-    cJSON *to_desire = nullptr;
-    cJSON *to_report = cJSON_CreateObject();
+    char *to_update_str = nullptr;
+    cJSON *to_update = cJSON_CreateObject();
+    cJSON *to_state = cJSON_AddObjectToObject(to_update, AWS_IOT_SHADOW_JSON_STATE);
+    cJSON *to_report = cJSON_AddObjectToObject(to_state, AWS_IOT_SHADOW_JSON_REPORTED);
     cJSON *to_report_config = cJSON_AddObjectToObject(to_report, "cfg"); // TODO constant
 
     // Handle change
     bool changed = false;
-    cJSON *desired_config = cJSON_GetObjectItemCaseSensitive(event->desired, "cfg"); // TODO constant
+    cJSON *desired_config = cJSON_GetObjectItemCaseSensitive(desired, "cfg"); // TODO constant
     if (desired_config)
     {
         err = app_config_update_from(&app_config, desired_config, &changed);
@@ -346,16 +354,9 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
     // Report always
     app_config_add_to(&app_config, to_report_config);
 
-    // Fill in desired attributes on full refresh
+    // Report found sensors on full refresh
     if (event->event_id == AWS_IOT_SHADOW_EVENT_GET_ACCEPTED)
     {
-        cJSON *to_desire_config = desired_config ? cJSON_Duplicate(desired_config, true) : cJSON_CreateObject();
-        // This does not overwrite existing attributes
-        app_config_add_to(&app_config, to_desire_config);
-
-        to_desire = cJSON_CreateObject();
-        cJSON_AddItemToObject(to_desire, "cfg", to_desire_config); // TODO constant
-
         // Also report found sensors
         cJSON *sensors_obj = cJSON_AddArrayToObject(to_report, "sensors"); // TODO constant
         if (sensors)
@@ -373,16 +374,11 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
                 cJSON_AddItemToArray(sensors_obj, sensor_obj);
             }
         }
-
-        // Remove default welcome keys
-        if (cJSON_HasObjectItem(event->desired, "welcome"))
-            cJSON_AddNullToObject(to_desire, "welcome");
-        if (cJSON_HasObjectItem(event->reported, "welcome"))
-            cJSON_AddNullToObject(to_report, "welcome");
     }
 
     // Publish event
-    err = aws_iot_shadow_request_update(event->handle, to_desire, to_report, nullptr);
+    to_update_str = cJSON_PrintUnformatted(to_update);
+    err = aws_iot_shadow_request_update(event->handle, to_update_str, strlen(to_update_str));
     if (err != ESP_OK)
     {
         ESP_LOGW(TAG, "failed to publish update: %d (%s)", err, esp_err_to_name(err));
@@ -391,15 +387,24 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
 
 cleanup:
     // Cleanup
-    cJSON_Delete(to_desire);
-    cJSON_Delete(to_report);
+    cJSON_Delete(root);
+    cJSON_Delete(to_update);
+    free(to_update_str);
 }
 
 static void shadow_event_handler_error(__unused void *handler_args, __unused esp_event_base_t event_base,
                                        __unused int32_t event_id, void *event_data)
 {
-    auto *event = (const struct aws_iot_shadow_event_data *)event_data;
-    ESP_LOGW(TAG, "shadow error %d %s", event->error->code, event->error->message);
+    const auto *event = (const struct aws_iot_shadow_event_data *)event_data;
+
+    // Parse
+    // TODO use with length in newer cjson version
+    cJSON *root = cJSON_ParseWithOpts(event->data, nullptr, false);
+    cJSON *code = cJSON_GetObjectItemCaseSensitive(root, AWS_IOT_SHADOW_JSON_CODE);
+    cJSON *message = cJSON_GetObjectItemCaseSensitive(root, AWS_IOT_SHADOW_JSON_MESSAGE);
+
+    // Log
+    ESP_LOGW(TAG, "shadow error %d: %d %s", event->event_id, code ? code->valueint : -1, message ? message->valuestring : "");
 }
 
 static void setup_aws()
@@ -431,7 +436,8 @@ static void setup_aws()
     ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_READY, shadow_ready_handler, nullptr));
     ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_GET_ACCEPTED, shadow_event_handler_state_accepted, nullptr));
     ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_UPDATE_ACCEPTED, shadow_event_handler_state_accepted, nullptr));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_ERROR, shadow_event_handler_error, nullptr));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_GET_REJECTED, shadow_event_handler_error, nullptr));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(aws_iot_shadow_handler_register(shadow_client, AWS_IOT_SHADOW_EVENT_UPDATE_REJECTED, shadow_event_handler_error, nullptr));
 }
 
 static void setup_wifi()
