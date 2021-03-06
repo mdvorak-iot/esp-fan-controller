@@ -336,14 +336,6 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
         }
         ESP_LOGI(TAG, "app_config stored successfully");
 
-        // TODO remove
-        cJSON *app_config_json = cJSON_CreateObject();
-        app_config_add_to(&app_config, app_config_json);
-        char *app_config_str = cJSON_Print(app_config_json);
-        cJSON_Delete(app_config_json);
-        ESP_LOGI(TAG, "stored app_config:\n%s", app_config_str);
-        free(app_config_str);
-
         // Restart
         // And restart, since we cannot re-initialize some of the services
         // TODO restart only when really needed
@@ -352,9 +344,11 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
     }
 
     // Report always
+    // NOTE this is needed, since we restart on config change
     app_config_add_to(&app_config, to_report_config);
 
-    // Report found sensors on full refresh
+    // Fill in desired attributes on full refresh
+    // NOTE this usually happens only on restart, unless someone else requests full document (this could be circumvented via client_token if needed)
     if (event->event_id == AWS_IOT_SHADOW_EVENT_GET_ACCEPTED)
     {
         // Also report found sensors
