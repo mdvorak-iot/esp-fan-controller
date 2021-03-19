@@ -1,8 +1,8 @@
 #include "app_config.h"
+#include <core_json.h>
 #include <esp_log.h>
 #include <nvs.h>
 #include <string.h>
-#include <core_json.h>
 
 static const char TAG[] = "app_config";
 
@@ -399,12 +399,20 @@ exit:
     return err;
 }
 
-esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *changed)
+#define JSON_SearchConst_Simple(buf, max, query, outValue, outValueLength, outType) JSON_SearchConst(buf, max, query, strlen(query), outValue, outValueLength, outType)
+
+esp_err_t app_config_update_from2(app_config_t *cfg, const char *data, size_t data_len, bool *changed)
 {
     if (cfg == NULL || data == NULL || changed == NULL)
     {
         return ESP_ERR_INVALID_ARG;
     }
+
+    const char *value = NULL;
+    size_t value_len = 0;
+
+    if (JSON_SearchConst_Simple(data, data_len, APP_CONFIG_KEY_STATUS_LED_PIN, &value, &value_len, NULL) == JSONSuccess)
+        cfg->status_led_pin = strtol(value, NULL, 10);
 
     json_helper_set_gpio_num(data, APP_CONFIG_KEY_STATUS_LED_PIN, changed, cfg, &cfg->status_led_pin);
     json_helper_set_bool(data, APP_CONFIG_KEY_STATUS_LED_ON_STATE, changed, &cfg->status_led_on_state);
