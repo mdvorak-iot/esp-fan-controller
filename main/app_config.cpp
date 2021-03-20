@@ -1,5 +1,4 @@
 #include "app_config.h"
-#include <core_json.h>
 #include <esp_log.h>
 #include <nvs.h>
 #include <string.h>

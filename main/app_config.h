@@ -1,12 +1,7 @@
 #pragma once
 
-#include <cJSON.h> // TODO
 #include <driver/gpio.h>
-#include <modp_json.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <rapidjson/document.h>
 
 // TODO use Kconfig for constants
 
@@ -74,7 +69,3 @@ char *app_config_print_address(char *buf, size_t buf_len, uint64_t value);
 #define APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS "highThreshC"
 #define APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT "lowThreshDuty"
 #define APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT "highThreshDuty"
-
-#ifdef __cplusplus
-}
-#endif

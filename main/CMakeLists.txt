@@ -20,4 +20,4 @@ idf_component_register(
         aws_iot_shadow
 )
 
-target_link_libraries(${COMPONENT_LIB} PUBLIC modp_json coreJSON)
+target_link_libraries(${COMPONENT_LIB} PRIVATE rapidjson)
