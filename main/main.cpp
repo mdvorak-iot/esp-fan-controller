@@ -3,6 +3,9 @@
 #include "fan_control.h"
 #include "metrics.h"
 #include "web_server.h"
+
+#include <new>
+
 #include <aws_iot_mqtt_config.h>
 #include <aws_iot_shadow.h>
 #include <aws_iot_shadow_mqtt_error.h>
@@ -14,6 +17,8 @@
 #include <freertos/event_groups.h>
 #include <mqtt_client.h>
 #include <nvs_flash.h>
+#include <rapidjson/document.h>
+#include <rapidjson/writer.h>
 #include <status_led.h>
 #include <wifi_reconnect.h>
 #include <wps_config.h>
@@ -189,13 +194,12 @@ static void setup_init()
     esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, disconnected_handler, nullptr);
 
     // Dump current config JSON
-    // TODO separate method
-    cJSON *app_config_json = cJSON_CreateObject();
-    app_config_add_to(&app_config, app_config_json);
-    char *app_config_str = cJSON_Print(app_config_json);
-    cJSON_Delete(app_config_json);
-    ESP_LOGI(TAG, "initial app_config:\n%s", app_config_str);
-    free(app_config_str);
+#ifndef NDEBUG
+    rapidjson::StringBuffer dump;
+    rapidjson::Writer<rapidjson::StringBuffer> dump_writer(dump);
+    app_config_write(&app_config, dump_writer);
+    ESP_LOGI(TAG, "initial app_config:\n%s", dump.GetString());
+#endif
 }
 
 static void setup_fans()
@@ -292,9 +296,10 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
     esp_err_t err = ESP_OK;
 
     // Parse
-    // TODO use with length in newer cjson version
-    cJSON *root = cJSON_ParseWithOpts(event->data, nullptr, false);
-    cJSON *desired = cJSON_GetObjectItemCaseSensitive(root, AWS_IOT_SHADOW_JSON_DESIRED);
+    rapidjson::Document doc;
+    doc.Parse(event->data, event->data_len);
+
+    auto desired = doc[AWS_IOT_SHADOW_JSON_DESIRED].GetObject();
 
     // Ignore if desired is missing in an update - nothing to do here
     if (!desired && event->event_id == AWS_IOT_SHADOW_EVENT_UPDATE_ACCEPTED)

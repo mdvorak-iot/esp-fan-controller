@@ -1,7 +1,10 @@
 #pragma once
 
+#include <new>
+
 #include <driver/gpio.h>
 #include <rapidjson/document.h>
+#include <rapidjson/writer.h>
 
 // TODO use Kconfig for constants
 
@@ -35,6 +38,7 @@ typedef struct app_config
     gpio_num_t sensors_pin;
     uint64_t primary_sensor_address;
     app_config_sensor_t sensors[APP_CONFIG_SENSORS_MAX_LENGTH];
+
     float low_threshold_celsius;
     float high_threshold_celsius;
     uint8_t low_threshold_duty_percent;
@@ -47,9 +51,9 @@ esp_err_t app_config_load(app_config_t *cfg);
 
 esp_err_t app_config_store(const app_config_t *cfg);
 
-esp_err_t app_config_update_from(app_config_t *cfg, const cJSON *data, bool *changed);
+esp_err_t app_config_read(app_config_t *cfg, const rapidjson::GenericValue<rapidjson::UTF8<>> &data);
 
-esp_err_t app_config_add_to(const app_config_t *cfg, cJSON *data);
+esp_err_t app_config_write(const app_config_t *cfg, rapidjson::Writer<rapidjson::StringBuffer> &w);
 
 char *app_config_print_address(char *buf, size_t buf_len, uint64_t value);
 
