@@ -7,10 +7,17 @@
 #include <utility>
 #include <vector>
 
-struct ShadowStateAccessor
-{
-    virtual ~ShadowStateAccessor() = default;
+struct shadow_state;
 
+struct shadow_state_accessor
+{
+    virtual ~shadow_state_accessor() = default;
+
+    virtual shadow_state *get_state() noexcept = 0;
+};
+
+struct shadow_state : shadow_state_accessor
+{
     /**
      * Gets value from given JSON object root and stores it to this instance.
      * Ignores invalid value type.
@@ -23,16 +30,21 @@ struct ShadowStateAccessor
 
     virtual void Load(nvs::NVSHandle &handle) = 0;
     virtual void Store(nvs::NVSHandle &handle) = 0;
+
+    shadow_state *get_state() noexcept override
+    {
+        return this;
+    }
 };
 
-struct ShadowStateSet
+struct shadow_state_set : shadow_state
 {
-    inline void Add(ShadowStateAccessor &state)
+    inline void Add(shadow_state &state) noexcept
     {
         states_.push_back(&state);
     }
 
-    bool Get(const rapidjson::Value &root)
+    bool Get(const rapidjson::Value &root) final
     {
         bool changed = false;
         for (auto state : states_)
@@ -42,7 +54,7 @@ struct ShadowStateSet
         return changed;
     }
 
-    void Set(rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator)
+    void Set(rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator) final
     {
         for (auto state : states_)
         {
@@ -50,7 +62,7 @@ struct ShadowStateSet
         }
     }
 
-    void Load(nvs::NVSHandle &handle)
+    void Load(nvs::NVSHandle &handle) final
     {
         for (auto state : states_)
         {
@@ -58,7 +70,7 @@ struct ShadowStateSet
         }
     }
 
-    void Store(nvs::NVSHandle &handle)
+    void Store(nvs::NVSHandle &handle) final
     {
         for (auto state : states_)
         {
@@ -67,25 +79,25 @@ struct ShadowStateSet
     }
 
  private:
-    std::vector<ShadowStateAccessor *> states_;
+    std::vector<shadow_state *> states_;
 };
 
 template<typename T>
-struct ShadowState : ShadowStateAccessor
+struct shadow_state_ref : shadow_state
 {
     const rapidjson::Pointer ptr;
     const std::string key;
-    T value;
+    T &value;
 
-    ShadowState(const char *jsonPointer, T defaultValue)
+    shadow_state_ref(const char *jsonPointer, T &value)
         : ptr(jsonPointer),
           key(jsonPointer + 1), // strip leading '/'
-          value(defaultValue)
+          value(value)
     {
     }
 
-    ShadowState(ShadowStateSet &set, const char *jsonPointer, T defaultValue)
-        : ShadowState(jsonPointer, defaultValue)
+    shadow_state_ref(shadow_state_set &set, const char *jsonPointer, T &value)
+        : shadow_state_ref(jsonPointer, value)
     {
         set.Add(*this);
     }
@@ -139,40 +151,59 @@ struct ShadowState : ShadowStateAccessor
 };
 
 template<>
-bool ShadowState<std::string>::Get(const rapidjson::Value &root);
+bool shadow_state_ref<std::string>::Get(const rapidjson::Value &root);
 
 template<>
-void ShadowState<std::string>::Set(rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator);
+void shadow_state_ref<std::string>::Set(rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator);
 
 template<>
-void ShadowState<std::string>::Load(nvs::NVSHandle &handle);
+void shadow_state_ref<std::string>::Load(nvs::NVSHandle &handle);
 
 template<>
-void ShadowState<std::string>::Store(nvs::NVSHandle &handle);
+void shadow_state_ref<std::string>::Store(nvs::NVSHandle &handle);
 
 template<>
-void ShadowState<double>::Load(nvs::NVSHandle &handle);
+void shadow_state_ref<double>::Load(nvs::NVSHandle &handle);
 
 template<>
-void ShadowState<double>::Store(nvs::NVSHandle &handle);
+void shadow_state_ref<double>::Store(nvs::NVSHandle &handle);
 
-template<typename T = ShadowStateAccessor>
-struct ShadowStateList : ShadowStateAccessor
+template<typename T>
+struct shadow_state_value : shadow_state_ref<T>
+{
+    shadow_state_value(const char *jsonPointer, T defaultValue)
+        : shadow_state_ref<T>(jsonPointer, valueHolder),
+          valueHolder(defaultValue)
+    {
+    }
+
+    shadow_state_value(shadow_state_set &set, const char *jsonPointer, T defaultValue)
+        : shadow_state_value(jsonPointer, defaultValue)
+    {
+        set.Add(*this);
+    }
+
+ protected:
+    T valueHolder;
+};
+
+template<typename T = shadow_state>
+struct shadow_state_list : shadow_state
 {
     const rapidjson::Pointer ptr;
     const std::string key;
     const std::function<T *()> itemFactory;
     std::vector<std::unique_ptr<T>> items;
 
-    ShadowStateList(const char *jsonPointer, std::function<T *()> itemFactory)
+    shadow_state_list(const char *jsonPointer, std::function<T *()> itemFactory)
         : ptr(jsonPointer),
           key(jsonPointer + 1), // strip leading '/'
           itemFactory(std::move(itemFactory))
     {
     }
 
-    ShadowStateList(ShadowStateSet &set, const char *jsonPointer, std::function<T *()> itemFactory)
-        : ShadowStateList(jsonPointer, itemFactory)
+    shadow_state_list(shadow_state_set &set, const char *jsonPointer, std::function<T *()> itemFactory)
+        : shadow_state_list(jsonPointer, itemFactory)
     {
         set.Add(*this);
     }
@@ -196,7 +227,7 @@ struct ShadowStateList : ShadowStateAccessor
         {
             while (items.size() < array.Size())
             {
-                items.push_back(std::unique_ptr<T>(itemFactory()));
+                items.emplace_back(std::unique_ptr<T>(itemFactory()));
             }
         }
 
@@ -238,9 +269,11 @@ struct ShadowStateList : ShadowStateAccessor
 
     void Load(nvs::NVSHandle &handle) final
     {
+        // TODO
     }
 
     void Store(nvs::NVSHandle &handle) final
     {
+        // TODO
     }
 };

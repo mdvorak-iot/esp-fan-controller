@@ -2,7 +2,7 @@
 #include <string>
 
 template<>
-bool ShadowState<std::string>::Get(const rapidjson::Value &root)
+bool shadow_state_ref<std::string>::Get(const rapidjson::Value &root)
 {
     // Find object
     const rapidjson::Value *obj = ptr.Get(root);
@@ -22,13 +22,13 @@ bool ShadowState<std::string>::Get(const rapidjson::Value &root)
 }
 
 template<>
-void ShadowState<std::string>::Set(rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator)
+void shadow_state_ref<std::string>::Set(rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator)
 {
     ptr.Create(root, allocator, nullptr).SetString(value, allocator);
 }
 
 template<>
-void ShadowState<std::string>::Load(nvs::NVSHandle &handle)
+void shadow_state_ref<std::string>::Load(nvs::NVSHandle &handle)
 {
     // First we need to know stored string length
     size_t len = 0;
@@ -50,14 +50,14 @@ void ShadowState<std::string>::Load(nvs::NVSHandle &handle)
 }
 
 template<>
-void ShadowState<std::string>::Store(nvs::NVSHandle &handle)
+void shadow_state_ref<std::string>::Store(nvs::NVSHandle &handle)
 {
     // NOTE this will strip string if it contains \0 character
     handle.set_string(key.c_str(), value.c_str());
 }
 
 template<>
-void ShadowState<double>::Load(nvs::NVSHandle &handle)
+void shadow_state_ref<double>::Load(nvs::NVSHandle &handle)
 {
     // NVS does not support floating point, so store it under u64, bit-wise
     uint64_t value_bits = 0;
@@ -68,7 +68,7 @@ void ShadowState<double>::Load(nvs::NVSHandle &handle)
 }
 
 template<>
-void ShadowState<double>::Store(nvs::NVSHandle &handle)
+void shadow_state_ref<double>::Store(nvs::NVSHandle &handle)
 {
     // NVS does not support floating point, so store it under u64, bit-wise
     uint64_t value_bits = *reinterpret_cast<uint64_t *>(&value);

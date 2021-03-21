@@ -4,12 +4,15 @@
 
 static const char TAG[] = "app_config";
 
-static ShadowStateSet state_set;
+static shadow_state_set state_set;
 
-static ShadowState<gpio_num_t> pin_(state_set, "/pin", GPIO_NUM_NC);
-static ShadowState<std::string> name_(state_set, "/nnn", std::string("asd"));
-static ShadowStateAccessor *ppin_ = &pin_;
-static ShadowStateAccessor *pname_ = &name_;
+gpio_num_t pin;
+std::string name;
+
+static shadow_state_value<gpio_num_t> pin_(state_set, "/pin", pin);
+static shadow_state_value<std::string> name_(state_set, "/nnn", name);
+static shadow_state *ppin_ = &pin_;
+static shadow_state *pname_ = &name_;
 
 void xxx(rapidjson::Document &doc)
 {
