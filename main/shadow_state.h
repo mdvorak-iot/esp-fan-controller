@@ -175,6 +175,12 @@ template<>
 void shadow_state_ref<std::string>::store(nvs::NVSHandle &handle, const char *prefix);
 
 template<>
+void shadow_state_ref<float>::load(nvs::NVSHandle &handle, const char *prefix);
+
+template<>
+void shadow_state_ref<float>::store(nvs::NVSHandle &handle, const char *prefix);
+
+template<>
 void shadow_state_ref<double>::load(nvs::NVSHandle &handle, const char *prefix);
 
 template<>

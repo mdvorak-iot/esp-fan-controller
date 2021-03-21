@@ -14,12 +14,12 @@ struct hw_config_sensor : shadow_state_set
 
     shadow_state_ref<std::string> state_address;
     shadow_state_value<std::string> name;
-    shadow_state_value<double> offset_c;
+    shadow_state_value<float> offset_c;
 
     hw_config_sensor()
         : state_address(*this, "/addr", address),
           name(*this, "/name", ""),
-          offset_c(*this, "/offsetC", 0.0)
+          offset_c(*this, "/offsetC", 0.0f)
     {
     }
 
@@ -32,6 +32,11 @@ struct hw_config_sensor : shadow_state_set
 struct hw_config : shadow_state_set
 {
     gpio_num_t status_led_pin;
+    //    bool status_led_on_state;
+    //    gpio_num_t pwm_pin;
+    //    bool pwm_inverted_duty;
+    //    gpio_num_t sensors_pin;
+    //    uint64_t primary_sensor_address;
 
     shadow_state_ref<gpio_num_t> state_status_led_pin;
     shadow_state_value<bool> status_led_on_state;

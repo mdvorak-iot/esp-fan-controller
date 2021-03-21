@@ -59,6 +59,27 @@ void shadow_state_ref<std::string>::store(nvs::NVSHandle &handle, const char *pr
 }
 
 template<>
+void shadow_state_ref<float>::load(nvs::NVSHandle &handle, const char *prefix)
+{
+    // NVS does not support floating point, so store it under u32, bit-wise
+    uint32_t value_bits = 0;
+    if (handle.get_item<uint32_t>(nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key), value_bits) == ESP_OK)
+    {
+        value = *reinterpret_cast<float *>(&value_bits);
+    }
+}
+
+template<>
+void shadow_state_ref<float>::store(nvs::NVSHandle &handle, const char *prefix)
+{
+    static_assert(sizeof(uint32_t) >= sizeof(float));
+
+    // NVS does not support floating point, so store it under u32, bit-wise
+    uint32_t value_bits = *reinterpret_cast<uint32_t *>(&value);
+    handle.set_item(nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key), value_bits);
+}
+
+template<>
 void shadow_state_ref<double>::load(nvs::NVSHandle &handle, const char *prefix)
 {
     // NVS does not support floating point, so store it under u64, bit-wise
@@ -72,6 +93,8 @@ void shadow_state_ref<double>::load(nvs::NVSHandle &handle, const char *prefix)
 template<>
 void shadow_state_ref<double>::store(nvs::NVSHandle &handle, const char *prefix)
 {
+    static_assert(sizeof(uint64_t) >= sizeof(double));
+
     // NVS does not support floating point, so store it under u64, bit-wise
     uint64_t value_bits = *reinterpret_cast<uint64_t *>(&value);
     handle.set_item(nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key), value_bits);
