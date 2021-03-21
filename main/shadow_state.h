@@ -139,7 +139,8 @@ struct shadow_state_ref : shadow_state
      * Ignores invalid value type.
      *
      * @param root JSON root object
-     * @param
+     * @param ptr JSON pointer
+     * @param value Value reference
      * @return true if value has changed, false otherwise
      */
     static bool get_value(const rapidjson::Value &root, const rapidjson::Pointer &ptr, T &value)
