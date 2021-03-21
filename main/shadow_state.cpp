@@ -55,3 +55,22 @@ void ShadowState<std::string>::Store(nvs::NVSHandle &handle)
     // NOTE this will strip string if it contains \0 character
     handle.set_string(key.c_str(), value.c_str());
 }
+
+template<>
+void ShadowState<double>::Load(nvs::NVSHandle &handle)
+{
+    // NVS does not support floating point, so store it under u64, bit-wise
+    uint64_t value_bits = 0;
+    if (handle.get_item<uint64_t>(key.c_str(), value_bits) == ESP_OK)
+    {
+        value = *reinterpret_cast<double *>(&value_bits);
+    }
+}
+
+template<>
+void ShadowState<double>::Store(nvs::NVSHandle &handle)
+{
+    // NVS does not support floating point, so store it under u64, bit-wise
+    uint64_t value_bits = *reinterpret_cast<uint64_t *>(&value);
+    handle.set_item(key.c_str(), value_bits);
+}

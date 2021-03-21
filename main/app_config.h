@@ -1,7 +1,5 @@
 #pragma once
 
-#include <new>
-
 #include "shadow_state.h"
 #include "shadow_state_gpio.h"
 #include <driver/gpio.h>
@@ -9,6 +7,38 @@
 #include <rapidjson/writer.h>
 
 // TODO use Kconfig for constants
+
+struct hw_config_sensor
+{
+    ShadowStateSet state;
+
+    ShadowState<std::string> address;
+    ShadowState<std::string> name;
+    ShadowState<double> offset_c;
+
+    hw_config_sensor()
+        : address(state, "/addr", ""),
+          name(state, "/name", ""),
+          offset_c(state, "/offsetC", 0.0)
+    {
+    }
+};
+
+struct hw_config
+{
+    ShadowStateSet state;
+
+    ShadowState<gpio_num_t> status_led_pin;
+    ShadowState<bool> status_led_on_state;
+    ShadowStateList sensors;
+
+    hw_config()
+        : status_led_pin(state, "/statusLedPin", GPIO_NUM_NC),
+          status_led_on_state(state, "/statusLedOnState", true),
+          sensors(state, "/sensors", &hw_config_sensor::hw_config_sensor)
+    {
+    }
+};
 
 /**
  * @brief Max supported rpm sensor count.
