@@ -233,6 +233,8 @@ esp_err_t app_config_write(const app_config_t *cfg, rapidjson::Writer<rapidjson:
     char addr_str[17] = {};
 
     // Set data
+    assert(w.StartObject());
+
     assert(w.Key(APP_CONFIG_KEY_STATUS_LED_PIN));
     assert(w.Int(cfg->status_led_pin));
 
@@ -291,6 +293,8 @@ esp_err_t app_config_write(const app_config_t *cfg, rapidjson::Writer<rapidjson:
     //    cJSON_AddNumberToObject(data, APP_CONFIG_KEY_HIGH_THRESHOLD_CELSIUS, cfg->high_threshold_celsius);
     //    cJSON_AddNumberToObject(data, APP_CONFIG_KEY_LOW_THRESHOLD_DUTY_PERCENT, cfg->low_threshold_duty_percent);
     //    cJSON_AddNumberToObject(data, APP_CONFIG_KEY_HIGH_THRESHOLD_DUTY_PERCENT, cfg->high_threshold_duty_percent);
+
+    assert(w.EndObject());
 
     return ESP_OK;
 }
