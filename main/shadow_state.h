@@ -213,6 +213,39 @@ struct shadow_state_field : shadow_state<S>
     }
 };
 
+template<typename T>
+struct shadow_state_value : shadow_state<T>
+{
+    const rapidjson::Pointer ptr;
+    const std::string key;
+
+    explicit shadow_state_value(const char *json_ptr)
+        : ptr(json_ptr),
+          key(json_ptr)
+    {
+    }
+
+    bool get(const rapidjson::Value &root, T &inst) const final
+    {
+        return shadow_state_helper<T>::get(ptr, root, inst);
+    }
+
+    void set(rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator, const T &inst) const final
+    {
+        shadow_state_helper<T>::set(ptr, root, allocator, inst);
+    }
+
+    void load(nvs::NVSHandle &handle, const char *prefix, T &inst) const final
+    {
+        shadow_state_helper<T>::load(key, handle, prefix, inst);
+    }
+
+    void store(nvs::NVSHandle &handle, const char *prefix, const T &inst) const final
+    {
+        shadow_state_helper<T>::store(key, handle, prefix, inst);
+    }
+};
+
 template<typename S, typename T>
 struct shadow_state_list : shadow_state<S>
 {

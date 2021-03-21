@@ -34,14 +34,14 @@ struct hw_config
     //    gpio_num_t sensors_pin;
     //    uint64_t primary_sensor_address;
 
-    //    std::vector<gpio_num_t> rpm_pins; // TODO shadow_state_value?
+    std::vector<gpio_num_t> rpm_pins;
     std::vector<hw_config_sensor> sensors;
 
     static shadow_state_set<hw_config> *state()
     {
         auto *state = new shadow_state_set<hw_config>();
         state->add(new shadow_state_field<hw_config, gpio_num_t>("/statusLed/pin", &hw_config::status_led_pin));
-        //        state.add(shadow_state_list<hw_config, gpio_num_t>("/rpm/pins", &hw_config::rpm_pins, shadow_state_field<gpio_num_t>()));
+        state->add(new shadow_state_list<hw_config, gpio_num_t>("/rpm/pins", &hw_config::rpm_pins, new shadow_state_value<gpio_num_t>("")));
         state->add(new shadow_state_list<hw_config, hw_config_sensor>("/sensors", &hw_config::sensors, hw_config_sensor::state()));
 
         return state;
