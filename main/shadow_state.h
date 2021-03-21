@@ -7,17 +7,23 @@
 #include <string>
 #include <vector>
 
-struct shadow_state;
-
-struct shadow_state_accessor
+// TODO move to cpp, rename
+static const char *nvs_key(const std::string &s)
 {
-    virtual ~shadow_state_accessor() = default;
+    return s.empty() ? "" : &s[1]; // Skip leading '/' char
+}
 
-    virtual shadow_state *get_shadow_state() noexcept = 0;
-};
-
-struct shadow_state : shadow_state_accessor
+static const char *nvs_key(const char *s)
 {
+    assert(s);
+    return *s != '\0' ? s + 1 : s; // Skip leading '/' char
+}
+
+template<typename S>
+struct shadow_state
+{
+    virtual ~shadow_state() = default;
+
     /**
      * Gets value from given JSON object root and stores it to this instance.
      * Ignores invalid value type.
@@ -25,115 +31,84 @@ struct shadow_state : shadow_state_accessor
      * @param root JSON root object
      * @return true if value has changed, false otherwise
      */
-    virtual bool get(const rapidjson::Value &root) = 0;
-    virtual void set(rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator) = 0;
+    virtual bool get(const rapidjson::Value &root, S &inst) const = 0;
+    virtual void set(rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator, const S &inst) const = 0;
 
-    virtual void load(nvs::NVSHandle &handle, const char *prefix) = 0;
-    virtual void store(nvs::NVSHandle &handle, const char *prefix) = 0;
-
-    shadow_state *get_shadow_state() noexcept override
+    void load(nvs::NVSHandle &handle, S &inst) const
     {
-        return this;
+        load(handle, nullptr, inst);
     }
 
- protected:
-    static const char *nvs_key(const std::string &s)
+    void store(nvs::NVSHandle &handle, const S &inst) const
     {
-        return s.empty() ? "" : &s[1]; // Skip leading '/' char
+        store(handle, nullptr, inst);
     }
 
-    static const char *nvs_key(const char *s)
-    {
-        assert(s);
-        return *s != '\0' ? s + 1 : s; // Skip leading '/' char
-    }
+    virtual void load(nvs::NVSHandle &handle, const char *prefix, S &inst) const = 0;
+    virtual void store(nvs::NVSHandle &handle, const char *prefix, const S &inst) const = 0;
 };
 
-struct shadow_state_set : shadow_state
+template<typename S>
+struct shadow_state_set : shadow_state<S>
 {
-    inline void add(shadow_state &state) noexcept
+    shadow_state_set() = default;
+    shadow_state_set(const shadow_state_set &) = delete;
+
+    ~shadow_state_set() override
     {
-        states_.push_back(&state);
+        for (auto state : states_)
+        {
+            delete state;
+        }
     }
 
-    bool get(const rapidjson::Value &root) final
+    inline void add(const shadow_state<S> *state) noexcept
+    {
+        assert(state);
+        states_.push_back(state);
+    }
+
+    bool get(const rapidjson::Value &root, S &inst) const final
     {
         bool changed = false;
         for (auto state : states_)
         {
-            changed |= state->get(root);
+            changed |= state->get(root, inst);
         }
         return changed;
     }
 
-    void set(rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator) final
+    void set(rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator, const S &inst) const final
     {
         for (auto state : states_)
         {
-            state->set(root, allocator);
+            state->set(root, allocator, inst);
         }
     }
 
-    void load(nvs::NVSHandle &handle, const char *prefix) final
+    void load(nvs::NVSHandle &handle, const char *prefix, S &inst) const final
     {
         for (auto state : states_)
         {
-            state->load(handle, prefix);
+            state->load(handle, prefix, inst);
         }
     }
 
-    void store(nvs::NVSHandle &handle, const char *prefix) final
+    void store(nvs::NVSHandle &handle, const char *prefix, const S &inst) const final
     {
         for (auto state : states_)
         {
-            state->store(handle, prefix);
+            state->store(handle, prefix, inst);
         }
     }
 
  private:
-    std::vector<shadow_state *> states_;
+    std::vector<const shadow_state<S> *> states_;
 };
 
 template<typename T>
-struct shadow_state_ref : shadow_state
+struct shadow_state_helper
 {
-    const rapidjson::Pointer ptr;
-    const std::string key;
-    T &value;
-
-    shadow_state_ref(const char *jsonPointer, T &value)
-        : ptr(jsonPointer),
-          key(jsonPointer),
-          value(value)
-    {
-    }
-
-    shadow_state_ref(shadow_state_set &set, const char *jsonPointer, T &value)
-        : shadow_state_ref(jsonPointer, value)
-    {
-        set.add(*this);
-    }
-
-    bool get(const rapidjson::Value &root) final
-    {
-        return get_value(root, ptr, value);
-    }
-
-    void set(rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator) final
-    {
-        ptr.Set<T>(root, value, allocator);
-    }
-
-    void load(nvs::NVSHandle &handle, const char *prefix) final
-    {
-        handle.get_item<T>(nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key), value);
-    }
-
-    void store(nvs::NVSHandle &handle, const char *prefix) final
-    {
-        handle.set_item<T>(nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key), value);
-    }
-
     /**
      * Gets value from given JSON object root and stores it to this instance.
      * Ignores invalid value type.
@@ -143,7 +118,7 @@ struct shadow_state_ref : shadow_state
      * @param value Value reference
      * @return true if value has changed, false otherwise
      */
-    static bool get_value(const rapidjson::Value &root, const rapidjson::Pointer &ptr, T &value)
+    static bool get(const rapidjson::Pointer &ptr, const rapidjson::Value &root, T &value)
     {
         // Find object
         const rapidjson::Value *obj = ptr.Get(root);
@@ -161,73 +136,102 @@ struct shadow_state_ref : shadow_state
         }
         return false;
     }
+
+    static void set(const rapidjson::Pointer &ptr, rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator, const T &value)
+    {
+        ptr.Set<T>(root, value, allocator);
+    }
+
+    static void load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, T &value)
+    {
+        handle.get_item<T>(nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key), value);
+    }
+
+    static void store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const T &value)
+    {
+        handle.set_item<T>(nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key), value);
+    }
 };
 
 template<>
-bool shadow_state_ref<std::string>::get(const rapidjson::Value &root);
+bool shadow_state_helper<std::string>::get(const rapidjson::Pointer &ptr, const rapidjson::Value &root, std::string &value);
 
 template<>
-void shadow_state_ref<std::string>::set(rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator);
+void shadow_state_helper<std::string>::set(const rapidjson::Pointer &ptr, rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator, const std::string &value);
 
 template<>
-void shadow_state_ref<std::string>::load(nvs::NVSHandle &handle, const char *prefix);
+void shadow_state_helper<std::string>::load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, std::string &value);
 
 template<>
-void shadow_state_ref<std::string>::store(nvs::NVSHandle &handle, const char *prefix);
+void shadow_state_helper<std::string>::store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const std::string &value);
 
 template<>
-void shadow_state_ref<float>::load(nvs::NVSHandle &handle, const char *prefix);
+void shadow_state_helper<float>::load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, float &value);
 
 template<>
-void shadow_state_ref<float>::store(nvs::NVSHandle &handle, const char *prefix);
+void shadow_state_helper<float>::store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const float &value);
 
 template<>
-void shadow_state_ref<double>::load(nvs::NVSHandle &handle, const char *prefix);
+void shadow_state_helper<double>::load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, double &value);
 
 template<>
-void shadow_state_ref<double>::store(nvs::NVSHandle &handle, const char *prefix);
+void shadow_state_helper<double>::store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const double &value);
 
-template<typename T>
-struct shadow_state_value : shadow_state_ref<T>
-{
-    shadow_state_value(const char *jsonPointer, T defaultValue)
-        : shadow_state_ref<T>(jsonPointer, valueHolder),
-          valueHolder(defaultValue)
-    {
-    }
-
-    shadow_state_value(shadow_state_set &set, const char *jsonPointer, T defaultValue)
-        : shadow_state_value(jsonPointer, defaultValue)
-    {
-        set.add(*this);
-    }
-
- protected:
-    T valueHolder;
-};
-
-template<typename T = shadow_state>
-struct shadow_state_list : shadow_state
+template<typename S, typename T>
+struct shadow_state_field : shadow_state<S>
 {
     const rapidjson::Pointer ptr;
     const std::string key;
-    const std::function<T *()> itemFactory;
-    std::vector<std::unique_ptr<T>> items;
+    T S::*const field;
 
-    shadow_state_list(const char *jsonPointer, std::function<T *()> itemFactory)
-        : ptr(jsonPointer),
-          key(jsonPointer),
-          itemFactory(std::move(itemFactory))
+    shadow_state_field(const char *json_ptr, T S::*field)
+        : ptr(json_ptr),
+          key(json_ptr),
+          field(field)
     {
+        assert(field);
     }
 
-    shadow_state_list(shadow_state_set &set, const char *jsonPointer, std::function<T *()> itemFactory)
-        : shadow_state_list(jsonPointer, itemFactory)
+    bool get(const rapidjson::Value &root, S &inst) const final
     {
-        set.add(*this);
+        return shadow_state_helper<T>::get(ptr, root, inst.*field);
     }
 
-    bool get(const rapidjson::Value &root) final
+    void set(rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator, const S &inst) const final
+    {
+        shadow_state_helper<T>::set(ptr, root, allocator, inst.*field);
+    }
+
+    void load(nvs::NVSHandle &handle, const char *prefix, S &inst) const final
+    {
+        shadow_state_helper<T>::load(key, handle, prefix, inst.*field);
+    }
+
+    void store(nvs::NVSHandle &handle, const char *prefix, const S &inst) const final
+    {
+        shadow_state_helper<T>::store(key, handle, prefix, inst.*field);
+    }
+};
+
+template<typename S, typename T>
+struct shadow_state_list : shadow_state<S>
+{
+    const rapidjson::Pointer ptr;
+    const std::string key;
+    std::vector<T> S::*const field;
+    const std::unique_ptr<const shadow_state<T>> element;
+
+    shadow_state_list(const char *json_ptr, std::vector<T> S::*field, const shadow_state<T> *element)
+        : ptr(json_ptr),
+          key(json_ptr),
+          field(field),
+          element(element)
+    {
+        assert(field);
+        assert(element);
+    }
+
+    bool get(const rapidjson::Value &root, S &inst) const final
     {
         const rapidjson::Value *list = ptr.Get(root);
         if (!list || !list->IsArray())
@@ -235,22 +239,24 @@ struct shadow_state_list : shadow_state
             return false;
         }
 
+        auto &items = inst.*field;
+
         // Resize
         auto array = list->GetArray();
-        size_t len = array.Size();
+        size_t length = array.Size();
 
-        resize(len);
+        items.resize(length);
 
         // Get each
         bool changed = false;
-        for (size_t i = 0; i < array.Size(); i++)
+        for (size_t i = 0; i < length; i++)
         {
-            changed |= items[i]->get_shadow_state()->get(array[i]);
+            changed |= element->get(array[i], items[i]);
         }
         return changed;
     }
 
-    void set(rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator) final
+    void set(rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator, const S &inst) const final
     {
         auto &array = ptr.Create(root, allocator);
         if (!array.IsArray())
@@ -258,6 +264,7 @@ struct shadow_state_list : shadow_state
             array.SetArray();
         }
 
+        auto &items = inst.*field;
         size_t len = items.size();
 
         // Resize array
@@ -275,14 +282,16 @@ struct shadow_state_list : shadow_state
         // Set each
         for (size_t i = 0; i < len; i++)
         {
-            items[i]->get_shadow_state()->set(array[i], allocator);
+            element->set(array[i], allocator, items[i]);
         }
     }
 
-    void load(nvs::NVSHandle &handle, const char *prefix) final
+    void load(nvs::NVSHandle &handle, const char *prefix, S &inst) const final
     {
         char item_prefix[16] = {};
         if (!prefix) prefix = "";
+
+        auto &items = inst.*field;
 
         // Read length
         std::snprintf(item_prefix, sizeof(item_prefix) - 1, "%s%s/len", prefix, key.c_str());
@@ -290,20 +299,22 @@ struct shadow_state_list : shadow_state
         handle.get_item(nvs_key(item_prefix), length); // Ignore error
 
         // Resize
-        resize(length);
+        items.resize(length);
 
         // Read items
         for (size_t i = 0; i < items.size(); i++)
         {
             std::snprintf(item_prefix, sizeof(item_prefix) - 1, "%s%s/%uz", prefix, key.c_str(), i);
-            items[i]->get_shadow_state()->load(handle, nvs_key(item_prefix));
+            element->load(handle, nvs_key(item_prefix), items[i]);
         }
     }
 
-    void store(nvs::NVSHandle &handle, const char *prefix) final
+    void store(nvs::NVSHandle &handle, const char *prefix, const S &inst) const final
     {
         char item_prefix[16] = {};
         if (!prefix) prefix = "";
+
+        auto &items = inst.*field;
 
         // Store length
         std::snprintf(item_prefix, sizeof(item_prefix) - 1, "%s%s/len", prefix, key.c_str());
@@ -313,23 +324,7 @@ struct shadow_state_list : shadow_state
         for (size_t i = 0; i < items.size(); i++)
         {
             std::snprintf(item_prefix, sizeof(item_prefix) - 1, "%s%s/%uz", prefix, key.c_str(), i);
-            items[i]->get_shadow_state()->store(handle, nvs_key(item_prefix));
-        }
-    }
-
-    void resize(size_t new_size)
-    {
-        if (items.size() > new_size)
-        {
-            items.resize(new_size);
-        }
-        else
-        {
-            items.reserve(new_size);
-            while (items.size() < new_size)
-            {
-                items.emplace_back(std::unique_ptr<T>(itemFactory()));
-            }
+            element->store(handle, nvs_key(item_prefix), items[i]);
         }
     }
 };

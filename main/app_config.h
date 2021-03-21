@@ -8,48 +8,43 @@
 
 // TODO use Kconfig for constants
 
-struct hw_config_sensor : shadow_state_set
+struct hw_config_sensor
 {
     std::string address;
+    std::string name;
+    float offset_c = 0.0f;
 
-    shadow_state_ref<std::string> state_address;
-    shadow_state_value<std::string> name;
-    shadow_state_value<float> offset_c;
-
-    hw_config_sensor()
-        : state_address(*this, "/addr", address),
-          name(*this, "/name", ""),
-          offset_c(*this, "/offsetC", 0.0f)
+    static shadow_state_set<hw_config_sensor> *state()
     {
-    }
+        auto *state = new shadow_state_set<hw_config_sensor>();
+        state->add(new shadow_state_field<hw_config_sensor, std::string>("/address", &hw_config_sensor::address));
+        state->add(new shadow_state_field<hw_config_sensor, std::string>("/name", &hw_config_sensor::name));
+        state->add(new shadow_state_field<hw_config_sensor, float>("/offsetC", &hw_config_sensor::offset_c));
 
-    static hw_config_sensor *new_obj()
-    {
-        return new hw_config_sensor();
+        return state;
     }
 };
 
-struct hw_config : shadow_state_set
+struct hw_config
 {
-    gpio_num_t status_led_pin;
+    gpio_num_t status_led_pin = GPIO_NUM_NC;
     //    bool status_led_on_state;
     //    gpio_num_t pwm_pin;
     //    bool pwm_inverted_duty;
     //    gpio_num_t sensors_pin;
     //    uint64_t primary_sensor_address;
 
-    shadow_state_ref<gpio_num_t> state_status_led_pin;
-    shadow_state_value<bool> status_led_on_state;
-    shadow_state_list<shadow_state_value<gpio_num_t>> rpm_pins;
-    shadow_state_list<hw_config_sensor> sensors;
+    //    std::vector<gpio_num_t> rpm_pins; // TODO shadow_state_value?
+    std::vector<hw_config_sensor> sensors;
 
-    hw_config()
-        : status_led_pin(GPIO_NUM_NC),
-          state_status_led_pin(*this, "/statusLedPin", status_led_pin),
-          status_led_on_state(*this, "/statusLedOnState", true),
-          rpm_pins(*this, "/rpmPins", []() { return new shadow_state_value<gpio_num_t>("", GPIO_NUM_NC); }),
-          sensors(*this, "/sensors", &hw_config_sensor::new_obj)
+    static shadow_state_set<hw_config> *state()
     {
+        auto *state = new shadow_state_set<hw_config>();
+        state->add(new shadow_state_field<hw_config, gpio_num_t>("/statusLed/pin", &hw_config::status_led_pin));
+        //        state.add(shadow_state_list<hw_config, gpio_num_t>("/rpm/pins", &hw_config::rpm_pins, shadow_state_field<gpio_num_t>()));
+        state->add(new shadow_state_list<hw_config, hw_config_sensor>("/sensors", &hw_config::sensors, hw_config_sensor::state()));
+
+        return state;
     }
 };
 

@@ -4,10 +4,10 @@
 #include <hal/gpio_types.h>
 
 template<>
-bool shadow_state_ref<gpio_num_t>::get(const rapidjson::Value &root);
+bool shadow_state_helper<gpio_num_t>::get(const rapidjson::Pointer &ptr, const rapidjson::Value &root, gpio_num_t &value);
 
 template<>
-void shadow_state_ref<gpio_num_t>::load(nvs::NVSHandle &handle, const char *prefix);
+void shadow_state_helper<gpio_num_t>::load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, gpio_num_t &value);
 
 template<>
-void shadow_state_ref<gpio_num_t>::store(nvs::NVSHandle &handle, const char *prefix);
+void shadow_state_helper<gpio_num_t>::store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const gpio_num_t &value);

@@ -4,34 +4,6 @@
 
 static const char TAG[] = "app_config";
 
-static shadow_state_set state_set;
-
-gpio_num_t pin;
-std::string name;
-
-static shadow_state_value<gpio_num_t> pin_(state_set, "/pin", pin);
-static shadow_state_value<std::string> name_(state_set, "/nnn", name);
-static shadow_state *ppin_ = &pin_;
-static shadow_state *pname_ = &name_;
-
-void xxx(rapidjson::Document &doc)
-{
-    ppin_->set(doc, doc.GetAllocator());
-    ppin_->get(doc);
-
-    pname_->set(doc, doc.GetAllocator());
-    pname_->get(doc);
-
-    state_set.get(doc);
-    state_set.set(doc, doc.GetAllocator());
-
-    esp_err_t err = ESP_OK;
-    auto nvs_handle = nvs::open_nvs_handle("doo", NVS_READWRITE, &err);
-
-    state_set.load(*nvs_handle, nullptr);
-    state_set.store(*nvs_handle, nullptr);
-}
-
 void app_config_init_defaults(app_config_t *cfg)
 {
     cfg->status_led_pin = GPIO_NUM_NC;
