@@ -90,21 +90,7 @@ struct ShadowState : ShadowStateAccessor
      */
     bool Get(const rapidjson::Value &root) final
     {
-        // Find object
-        const rapidjson::Value *obj = ptr.Get(root);
-        // Check its type
-        if (obj && obj->Is<T>())
-        {
-            // Get new value
-            T newValue = obj->Get<T>();
-            if (newValue != value)
-            {
-                // If it is different, update
-                value = newValue;
-                return true;
-            }
-        }
-        return false;
+        return GetValue(root, ptr, value);
     }
 
     void Set(rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator) final
@@ -120,6 +106,33 @@ struct ShadowState : ShadowStateAccessor
     void Store(nvs::NVSHandle &handle) override
     {
         handle.set_item<T>(key.c_str(), value);
+    }
+
+    /**
+     * Gets value from given JSON object root and stores it to this instance.
+     * Ignores invalid value type.
+     *
+     * @param root JSON root object
+     * @param
+     * @return true if value has changed, false otherwise
+     */
+    static bool GetValue(const rapidjson::Value &root, rapidjson::Pointer &ptr, T &value)
+    {
+        // Find object
+        const rapidjson::Value *obj = ptr.Get(root);
+        // Check its type
+        if (obj && obj->Is<T>())
+        {
+            // Get new value
+            T newValue = obj->Get<T>();
+            if (newValue != value)
+            {
+                // If it is different, update
+                value = newValue;
+                return true;
+            }
+        }
+        return false;
     }
 };
 

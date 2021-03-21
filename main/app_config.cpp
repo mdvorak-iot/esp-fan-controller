@@ -6,7 +6,7 @@ static const char TAG[] = "app_config";
 
 static ShadowStateSet state_set;
 
-static ShadowState<int> pin_(state_set, "/pin", GPIO_NUM_NC);
+static ShadowState<gpio_num_t> pin_(state_set, "/pin", GPIO_NUM_NC);
 static ShadowState<std::string> name_(state_set, "/nnn", std::string("asd"));
 static ShadowStateAccessor *ppin_ = &pin_;
 static ShadowStateAccessor *pname_ = &name_;
