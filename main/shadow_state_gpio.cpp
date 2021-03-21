@@ -5,6 +5,7 @@ bool ShadowState<gpio_num_t>::Get(const rapidjson::Value &root)
 {
     int num = value;
     bool changed = ShadowState<int>::GetValue(root, ptr, num);
+    // TODO validate pin?
     value = static_cast<gpio_num_t>(num);
     return changed;
 }

@@ -64,8 +64,8 @@ struct ShadowStateSet
 template<typename T>
 struct ShadowState : ShadowStateAccessor
 {
-    rapidjson::Pointer ptr;
-    std::string key;
+    const rapidjson::Pointer ptr;
+    const std::string key;
     T value;
 
     ShadowState(const char *jsonPointer, T defaultValue)
@@ -116,7 +116,7 @@ struct ShadowState : ShadowStateAccessor
      * @param
      * @return true if value has changed, false otherwise
      */
-    static bool GetValue(const rapidjson::Value &root, rapidjson::Pointer &ptr, T &value)
+    static bool GetValue(const rapidjson::Value &root, const rapidjson::Pointer &ptr, T &value)
     {
         // Find object
         const rapidjson::Value *obj = ptr.Get(root);
