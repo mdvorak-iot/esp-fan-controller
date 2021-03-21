@@ -8,34 +8,37 @@
 
 // TODO use Kconfig for constants
 
-struct hw_config_sensor
+struct hw_config_sensor : ShadowStateSet
 {
-    ShadowStateSet state;
-
     ShadowState<std::string> address;
     ShadowState<std::string> name;
     ShadowState<double> offset_c;
 
     hw_config_sensor()
-        : address(state, "/addr", ""),
-          name(state, "/name", ""),
-          offset_c(state, "/offsetC", 0.0)
+        : address(*this, "/addr", ""),
+          name(*this, "/name", ""),
+          offset_c(*this, "/offsetC", 0.0)
     {
+    }
+
+    static hw_config_sensor *new_obj()
+    {
+        return new hw_config_sensor();
     }
 };
 
-struct hw_config
+struct hw_config : ShadowStateSet
 {
-    ShadowStateSet state;
-
     ShadowState<gpio_num_t> status_led_pin;
     ShadowState<bool> status_led_on_state;
-    ShadowStateList sensors;
+    ShadowStateList<ShadowState<gpio_num_t>> rpm_pins;
+    ShadowStateList<hw_config_sensor> sensors;
 
     hw_config()
-        : status_led_pin(state, "/statusLedPin", GPIO_NUM_NC),
-          status_led_on_state(state, "/statusLedOnState", true),
-          sensors(state, "/sensors", &hw_config_sensor::hw_config_sensor)
+        : status_led_pin(*this, "/statusLedPin", GPIO_NUM_NC),
+          status_led_on_state(*this, "/statusLedOnState", true),
+          rpm_pins(*this, "/rpmPins", []() { return new ShadowState<gpio_num_t>("", GPIO_NUM_NC); }),
+          sensors(*this, "/sensors", &hw_config_sensor::new_obj)
     {
     }
 };

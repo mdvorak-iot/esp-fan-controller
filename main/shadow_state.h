@@ -156,21 +156,22 @@ void ShadowState<double>::Load(nvs::NVSHandle &handle);
 template<>
 void ShadowState<double>::Store(nvs::NVSHandle &handle);
 
+template<typename T = ShadowStateAccessor>
 struct ShadowStateList : ShadowStateAccessor
 {
     const rapidjson::Pointer ptr;
     const std::string key;
-    const std::function<ShadowStateAccessor *()> itemFactory;
-    std::vector<std::unique_ptr<ShadowStateAccessor>> items;
+    const std::function<T *()> itemFactory;
+    std::vector<std::unique_ptr<T>> items;
 
-    ShadowStateList(const char *jsonPointer, std::function<ShadowStateAccessor *()> itemFactory)
+    ShadowStateList(const char *jsonPointer, std::function<T *()> itemFactory)
         : ptr(jsonPointer),
           key(jsonPointer + 1), // strip leading '/'
           itemFactory(std::move(itemFactory))
     {
     }
 
-    ShadowStateList(ShadowStateSet &set, const char *jsonPointer, std::function<ShadowStateAccessor *()> &itemFactory)
+    ShadowStateList(ShadowStateSet &set, const char *jsonPointer, std::function<T *()> itemFactory)
         : ShadowStateList(jsonPointer, itemFactory)
     {
         set.Add(*this);
@@ -195,7 +196,7 @@ struct ShadowStateList : ShadowStateAccessor
         {
             while (items.size() < array.Size())
             {
-                items.push_back(std::unique_ptr<ShadowStateAccessor>(itemFactory()));
+                items.push_back(std::unique_ptr<T>(itemFactory()));
             }
         }
 
