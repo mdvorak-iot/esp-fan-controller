@@ -16,20 +16,20 @@ static shadow_state *pname_ = &name_;
 
 void xxx(rapidjson::Document &doc)
 {
-    ppin_->Set(doc, doc.GetAllocator());
-    ppin_->Get(doc);
+    ppin_->set(doc, doc.GetAllocator());
+    ppin_->get(doc);
 
-    pname_->Set(doc, doc.GetAllocator());
-    pname_->Get(doc);
+    pname_->set(doc, doc.GetAllocator());
+    pname_->get(doc);
 
-    state_set.Get(doc);
-    state_set.Set(doc, doc.GetAllocator());
+    state_set.get(doc);
+    state_set.set(doc, doc.GetAllocator());
 
     esp_err_t err = ESP_OK;
     auto nvs_handle = nvs::open_nvs_handle("doo", NVS_READWRITE, &err);
 
-    state_set.Load(*nvs_handle);
-    state_set.Store(*nvs_handle);
+    state_set.load(*nvs_handle, nullptr);
+    state_set.store(*nvs_handle, nullptr);
 }
 
 void app_config_init_defaults(app_config_t *cfg)
