@@ -14,7 +14,7 @@ template<>
 void shadow_state_ref<gpio_num_t>::load(nvs::NVSHandle &handle, const char *prefix)
 {
     int num = value;
-    if (handle.get_item((prefix && prefix[0] != '\0' ? prefix + key : key).c_str(), num) == ESP_OK)
+    if (handle.get_item(nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key), num) == ESP_OK)
     {
         value = static_cast<gpio_num_t>(num);
     }
@@ -23,5 +23,5 @@ void shadow_state_ref<gpio_num_t>::load(nvs::NVSHandle &handle, const char *pref
 template<>
 void shadow_state_ref<gpio_num_t>::store(nvs::NVSHandle &handle, const char *prefix)
 {
-    handle.set_item((prefix && prefix[0] != '\0' ? prefix + key : key).c_str(), static_cast<int>(value));
+    handle.set_item(nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key), static_cast<int>(value));
 }

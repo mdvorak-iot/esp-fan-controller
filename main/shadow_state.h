@@ -35,6 +35,12 @@ struct shadow_state : shadow_state_accessor
     {
         return this;
     }
+
+ protected:
+    static const char *nvs_key(const std::string &s)
+    {
+        return s.empty() ? "" : &s[1]; // Skip leading '/' char
+    }
 };
 
 struct shadow_state_set : shadow_state
@@ -91,7 +97,7 @@ struct shadow_state_ref : shadow_state
 
     shadow_state_ref(const char *jsonPointer, T &value)
         : ptr(jsonPointer),
-          key(jsonPointer + 1), // strip leading '/'
+          key(jsonPointer),
           value(value)
     {
     }
@@ -114,12 +120,12 @@ struct shadow_state_ref : shadow_state
 
     void load(nvs::NVSHandle &handle, const char *prefix) final
     {
-        handle.get_item<T>((prefix && prefix[0] != '\0' ? prefix + key : key).c_str(), value);
+        handle.get_item<T>(nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key), value);
     }
 
     void store(nvs::NVSHandle &handle, const char *prefix) final
     {
-        handle.set_item<T>((prefix && prefix[0] != '\0' ? prefix + key : key).c_str(), value);
+        handle.set_item<T>(nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key), value);
     }
 
     /**
@@ -197,7 +203,7 @@ struct shadow_state_list : shadow_state
 
     shadow_state_list(const char *jsonPointer, std::function<T *()> itemFactory)
         : ptr(jsonPointer),
-          key(jsonPointer + 1), // strip leading '/'
+          key(jsonPointer),
           itemFactory(std::move(itemFactory))
     {
     }
@@ -276,7 +282,7 @@ struct shadow_state_list : shadow_state
         // Read items
         for (size_t i = 0; i < items.size(); i++)
         {
-            std::snprintf(item_prefix, sizeof(item_prefix) - 1, "%s%s/%uz/", prefix, key.c_str(), i);
+            std::snprintf(item_prefix, sizeof(item_prefix) - 1, "%s%s/%uz", prefix, key.c_str(), i);
             items[i]->get_shadow_state()->load(handle, item_prefix);
         }
     }
@@ -293,7 +299,7 @@ struct shadow_state_list : shadow_state
         // Store items
         for (size_t i = 0; i < items.size(); i++)
         {
-            std::snprintf(item_prefix, sizeof(item_prefix) - 1, "%s%s/%uz/", prefix, key.c_str(), i);
+            std::snprintf(item_prefix, sizeof(item_prefix) - 1, "%s%s/%uz", prefix, key.c_str(), i);
             items[i]->get_shadow_state()->store(handle, item_prefix);
         }
     }

@@ -53,6 +53,8 @@ static struct ds18b20_config
 static volatile float sensor_values_c[DS18B20_GROUP_MAX_SIZE] = {0};
 static volatile float fan_duty_percent = 0;
 
+static hw_config hw_config;
+
 static void do_mqtt_connect()
 {
     if (xEventGroupGetBits(state) & STATE_BIT_MQTT_STARTED)
