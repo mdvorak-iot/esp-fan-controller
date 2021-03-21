@@ -41,6 +41,12 @@ struct shadow_state : shadow_state_accessor
     {
         return s.empty() ? "" : &s[1]; // Skip leading '/' char
     }
+
+    static const char *nvs_key(const char *s)
+    {
+        assert(s);
+        return *s != '\0' ? s + 1 : s; // Skip leading '/' char
+    }
 };
 
 struct shadow_state_set : shadow_state
@@ -274,7 +280,7 @@ struct shadow_state_list : shadow_state
         // Read length
         std::snprintf(item_prefix, sizeof(item_prefix) - 1, "%s%s/len", prefix, key.c_str());
         uint16_t length = 0;
-        handle.get_item(item_prefix, length); // Ignore error
+        handle.get_item(nvs_key(item_prefix), length); // Ignore error
 
         // Resize
         resize(length);
@@ -283,7 +289,7 @@ struct shadow_state_list : shadow_state
         for (size_t i = 0; i < items.size(); i++)
         {
             std::snprintf(item_prefix, sizeof(item_prefix) - 1, "%s%s/%uz", prefix, key.c_str(), i);
-            items[i]->get_shadow_state()->load(handle, item_prefix);
+            items[i]->get_shadow_state()->load(handle, nvs_key(item_prefix));
         }
     }
 
@@ -294,13 +300,13 @@ struct shadow_state_list : shadow_state
 
         // Store length
         std::snprintf(item_prefix, sizeof(item_prefix) - 1, "%s%s/len", prefix, key.c_str());
-        handle.set_item(item_prefix, static_cast<uint16_t>(items.size())); // No need to store all 32 bytes, that would never fit in memory
+        handle.set_item(nvs_key(item_prefix), static_cast<uint16_t>(items.size())); // No need to store all 32 bytes, that would never fit in memory
 
         // Store items
         for (size_t i = 0; i < items.size(); i++)
         {
             std::snprintf(item_prefix, sizeof(item_prefix) - 1, "%s%s/%uz", prefix, key.c_str(), i);
-            items[i]->get_shadow_state()->store(handle, item_prefix);
+            items[i]->get_shadow_state()->store(handle, nvs_key(item_prefix));
         }
     }
 
