@@ -18,6 +18,7 @@
 #include <mqtt_client.h>
 #include <nvs_flash.h>
 #include <rapidjson/document.h>
+#include <rapidjson/pointer.h>
 #include <rapidjson/writer.h>
 #include <status_led.h>
 #include <wifi_reconnect.h>
@@ -178,7 +179,8 @@ static void setup_init()
 
     // Load app_config
     app_config_init_defaults(&app_config);
-    err = app_config_load(&app_config);
+    // TODO
+//    err = app_config_load(&app_config);
     if (err != ESP_OK)
     {
         ESP_LOGW(TAG, "failed to load app_config, using defaults");
@@ -287,109 +289,113 @@ static void mqtt_event_handler(__unused void *handler_args, __unused esp_event_b
     }
 }
 
+static const rapidjson::Pointer JSON_PTR_STATE_DESIRED("/state/desired");
+
 static void shadow_event_handler_state_accepted(__unused void *handler_args, __unused esp_event_base_t event_base,
                                                 int32_t event_id, void *event_data)
 {
     ESP_LOGD(TAG, "shadow accepted event %d", event_id);
     auto *event = (const struct aws_iot_shadow_event_data *)event_data;
 
-    esp_err_t err = ESP_OK;
+//    esp_err_t err = ESP_OK;
 
     // Parse
+    // NOTE this is only handler, so we can intentionally destroy original json, and avoid string duplication during parsing
     rapidjson::Document doc;
-    doc.Parse(event->data, event->data_len);
+    doc.Parse<rapidjson::kParseInsituFlag>(const_cast<char *>(event->data), event->data_len);
 
-    auto desired = doc[AWS_IOT_SHADOW_JSON_DESIRED].GetObject();
+    auto *desired = JSON_PTR_STATE_DESIRED.Get(doc);
 
     // Ignore if desired is missing in an update - nothing to do here
-    if (!desired && event->event_id == AWS_IOT_SHADOW_EVENT_UPDATE_ACCEPTED)
+    if (event->event_id == AWS_IOT_SHADOW_EVENT_UPDATE_ACCEPTED && (!desired || !desired->IsObject() || desired->ObjectEmpty()))
     {
-        cJSON_Delete(root);
         return;
     }
 
     // New status
-    char *to_update_str = nullptr;
-    cJSON *to_update = cJSON_CreateObject();
-    cJSON *to_state = cJSON_AddObjectToObject(to_update, AWS_IOT_SHADOW_JSON_STATE);
-    cJSON *to_report = cJSON_AddObjectToObject(to_state, AWS_IOT_SHADOW_JSON_REPORTED);
-    cJSON *to_report_config = cJSON_AddObjectToObject(to_report, "cfg"); // TODO constant
-
-    // Handle change
-    bool changed = false;
-    cJSON *desired_config = cJSON_GetObjectItemCaseSensitive(desired, "cfg"); // TODO constant
-    if (desired_config)
-    {
-        err = app_config_update_from(&app_config, desired_config, &changed);
-        if (err != ESP_OK)
-        {
-            ESP_LOGW(TAG, "failed to update app_config from a shadow: %d (%s)", err, esp_err_to_name(err));
-            goto cleanup;
-        }
-    }
-
-    if (changed)
-    {
-        ESP_LOGI(TAG, "desired app_config changed");
-
-        // Store to NVS
-        err = app_config_store(&app_config);
-        if (err != ESP_OK)
-        {
-            ESP_LOGW(TAG, "failed to store app_config: %d (%s)", err, esp_err_to_name(err));
-            goto cleanup;
-        }
-        ESP_LOGI(TAG, "app_config stored successfully");
-
-        // Restart
-        // And restart, since we cannot re-initialize some of the services
-        // TODO restart only when really needed
-        do_restart();
-        goto cleanup; // No need to continue atm
-    }
-
-    // Report always
-    // NOTE this is needed, since we restart on config change
-    app_config_add_to(&app_config, to_report_config);
-
-    // Fill in desired attributes on full refresh
-    // NOTE this usually happens only on restart, unless someone else requests full document (this could be circumvented via client_token if needed)
-    if (event->event_id == AWS_IOT_SHADOW_EVENT_GET_ACCEPTED)
-    {
-        // Also report found sensors
-        cJSON *sensors_obj = cJSON_AddArrayToObject(to_report, "sensors"); // TODO constant
-        if (sensors)
-        {
-            for (size_t i = 0; i < sensors->count; i++)
-            {
-                cJSON *sensor_obj = cJSON_CreateObject();
-                cJSON_AddStringToObject(sensor_obj, APP_CONFIG_KEY_SENSOR_ADDRESS, sensor_configs[i].address.c_str());
-
-                if (memcmp(sensors->devices[i].rom_code.bytes, &app_config.primary_sensor_address, sizeof(uint64_t)) == 0)
-                {
-                    cJSON_AddBoolToObject(sensor_obj, "is_primary", true);
-                }
-
-                cJSON_AddItemToArray(sensors_obj, sensor_obj);
-            }
-        }
-    }
-
-    // Publish event
-    to_update_str = cJSON_PrintUnformatted(to_update);
-    err = aws_iot_shadow_request_update(event->handle, to_update_str, strlen(to_update_str));
-    if (err != ESP_OK)
-    {
-        ESP_LOGW(TAG, "failed to publish update: %d (%s)", err, esp_err_to_name(err));
-        goto cleanup;
-    }
-
-cleanup:
-    // Cleanup
-    cJSON_Delete(root);
-    cJSON_Delete(to_update);
-    free(to_update_str);
+    //    char *to_update_str = nullptr;
+    //    cJSON *to_update = cJSON_CreateObject();
+    //    cJSON *to_state = cJSON_AddObjectToObject(to_update, AWS_IOT_SHADOW_JSON_STATE);
+    //    cJSON *to_report = cJSON_AddObjectToObject(to_state, AWS_IOT_SHADOW_JSON_REPORTED);
+    //    cJSON *to_report_config = cJSON_AddObjectToObject(to_report, "cfg"); // TODO constant
+    //
+    //    // Handle change
+    //    bool changed = false;
+    //    cJSON *desired_config = cJSON_GetObjectItemCaseSensitive(desired, "cfg"); // TODO constant
+    //    if (desired_config)
+    //    {
+    //        err = app_config_update_from(&app_config, desired_config, &changed);
+    //        if (err != ESP_OK)
+    //        {
+    //            ESP_LOGW(TAG, "failed to update app_config from a shadow: %d (%s)", err, esp_err_to_name(err));
+    //            goto cleanup;
+    //        }
+    //    }
+    //
+    //    if (changed)
+    //    {
+    //        ESP_LOGI(TAG, "desired app_config changed");
+    //
+    //        // Store to NVS
+    //        err = app_config_store(&app_config);
+    //        if (err != ESP_OK)
+    //        {
+    //            ESP_LOGW(TAG, "failed to store app_config: %d (%s)", err, esp_err_to_name(err));
+    //            goto cleanup;
+    //        }
+    //        ESP_LOGI(TAG, "app_config stored successfully");
+    //
+    //        // Restart
+    //        // And restart, since we cannot re-initialize some of the services
+    //        // TODO restart only when really needed
+    //        do_restart();
+    //        goto cleanup; // No need to continue atm
+    //    }
+    //
+    //    // Report always
+    //    // NOTE this is needed, since we restart on config change
+    //    app_config_add_to(&app_config, to_report_config);
+    //
+    //    // Fill in desired attributes on full refresh
+    //    // NOTE this usually happens only on restart, unless someone else requests full document (this could be circumvented via client_token if needed)
+    //    if (event->event_id == AWS_IOT_SHADOW_EVENT_GET_ACCEPTED)
+    //    {
+    //        // Also report found sensors
+    //        cJSON *sensors_obj = cJSON_AddArrayToObject(to_report, "sensors"); // TODO constant
+    //        if (sensors)
+    //        {
+    //            for (size_t i = 0; i < sensors->count; i++)
+    //            {
+    //                cJSON *sensor_obj = cJSON_CreateObject();
+    //                cJSON_AddStringToObject(sensor_obj, APP_CONFIG_KEY_SENSOR_ADDRESS, sensor_configs[i].address.c_str());
+    //
+    //                if (memcmp(sensors->devices[i].rom_code.bytes, &app_config.primary_sensor_address, sizeof(uint64_t)) == 0)
+    //                {
+    //                    cJSON_AddBoolToObject(sensor_obj, "is_primary", true);
+    //                }
+    //
+    //                cJSON_AddItemToArray(sensors_obj, sensor_obj);
+    //            }
+    //        }
+    //    }
+    //
+    //    // Publish event
+    //    to_update_str = cJSON_PrintUnformatted(to_update);
+    //    err = aws_iot_shadow_request_update(event->handle, to_update_str, strlen(to_update_str));
+    //    if (err != ESP_OK)
+    //    {
+    //        ESP_LOGW(TAG, "failed to publish update: %d (%s)", err, esp_err_to_name(err));
+    //        goto cleanup;
+    //    }
+    //
+    //cleanup:
+    //    // Cleanup
+    //    cJSON_Delete(root);
+    //    cJSON_Delete(to_update);
+    //    free(to_update_str);
 }
+
+static const rapidjson::Pointer JSON_PTR_CODE("/code");
 
 static void shadow_event_handler_error(__unused void *handler_args, __unused esp_event_base_t event_base,
                                        __unused int32_t event_id, void *event_data)
@@ -397,13 +403,19 @@ static void shadow_event_handler_error(__unused void *handler_args, __unused esp
     const auto *event = (const struct aws_iot_shadow_event_data *)event_data;
 
     // Parse
-    // TODO use with length in newer cjson version
-    cJSON *root = cJSON_ParseWithOpts(event->data, nullptr, false);
-    cJSON *code = cJSON_GetObjectItemCaseSensitive(root, AWS_IOT_SHADOW_JSON_CODE);
-    cJSON *message = cJSON_GetObjectItemCaseSensitive(root, AWS_IOT_SHADOW_JSON_MESSAGE);
+    rapidjson::Document doc;
+    doc.Parse<rapidjson::kParseInsituFlag>(const_cast<char *>(event->data), event->data_len);
+
+    int code = JSON_PTR_CODE.GetWithDefault(doc, -1).GetInt();
+
+    const char *message = nullptr;
+    if (doc.HasMember(AWS_IOT_SHADOW_JSON_MESSAGE) && doc[AWS_IOT_SHADOW_JSON_MESSAGE].IsString())
+    {
+        message = doc[AWS_IOT_SHADOW_JSON_MESSAGE].GetString();
+    }
 
     // Log
-    ESP_LOGW(TAG, "shadow error %d: %d %s", event->event_id, code ? code->valueint : -1, message ? message->valuestring : "");
+    ESP_LOGW(TAG, "shadow error %d: %d %s", event->event_id, code, message ? message : "");
 }
 
 static void setup_aws()

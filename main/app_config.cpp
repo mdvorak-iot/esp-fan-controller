@@ -1,7 +1,33 @@
 #include "app_config.h"
 #include <esp_log.h>
+#include <nvs_handle.hpp>
 
 static const char TAG[] = "app_config";
+
+static ShadowStateSet state_set;
+
+static ShadowState<int> pin_(state_set, "/pin", GPIO_NUM_NC);
+static ShadowState<std::string> name_(state_set, "/nnn", std::string("asd"));
+static ShadowStateAccessor *ppin_ = &pin_;
+static ShadowStateAccessor *pname_ = &name_;
+
+void xxx(rapidjson::Document &doc)
+{
+    ppin_->Set(doc, doc.GetAllocator());
+    ppin_->Get(doc);
+
+    pname_->Set(doc, doc.GetAllocator());
+    pname_->Get(doc);
+
+    state_set.Get(doc);
+    state_set.Set(doc, doc.GetAllocator());
+
+    esp_err_t err = ESP_OK;
+    auto nvs_handle = nvs::open_nvs_handle("doo", NVS_READWRITE, &err);
+
+    state_set.Load(*nvs_handle);
+    state_set.Store(*nvs_handle);
+}
 
 void app_config_init_defaults(app_config_t *cfg)
 {
@@ -172,9 +198,9 @@ inline static bool is_valid_gpio_num(int pin)
 //    return err;
 //}
 
-gpio_num_t rapidjson_get_gpionum(const rapidjson::GenericValue<rapidjson::UTF8<>> &val)
-{
-}
+//gpio_num_t rapidjson_get_gpionum(const rapidjson::GenericValue<rapidjson::UTF8<>> &val)
+//{
+//}
 
 esp_err_t app_config_read(app_config_t *cfg, const rapidjson::GenericValue<rapidjson::UTF8<>> &data)
 {
@@ -183,7 +209,7 @@ esp_err_t app_config_read(app_config_t *cfg, const rapidjson::GenericValue<rapid
         return ESP_ERR_INVALID_ARG;
     }
 
-    rapidjson_get_gpionum(data[APP_CONFIG_KEY_STATUS_LED_PIN]);
+    //    rapidjson_get_gpionum(data[APP_CONFIG_KEY_STATUS_LED_PIN]);
 
     cfg->status_led_pin = static_cast<gpio_num_t>(data[APP_CONFIG_KEY_STATUS_LED_PIN].GetInt());
 

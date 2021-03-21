@@ -21,3 +21,4 @@ idf_component_register(
 )
 
 target_link_libraries(${COMPONENT_LIB} PRIVATE rapidjson)
+target_compile_definitions(${COMPONENT_LIB} PUBLIC -DRAPIDJSON_HAS_STDSTRING=1)

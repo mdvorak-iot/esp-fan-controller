@@ -2,6 +2,7 @@
 
 #include <new>
 
+#include "shadow_state.h"
 #include <driver/gpio.h>
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>

@@ -10,7 +10,7 @@ ExternalComponent_Get(esp32-owb https://github.com/DavidAntliff/esp32-owb.git b2
 ExternalComponent_Get(esp32-ds18b20 https://github.com/DavidAntliff/esp32-ds18b20.git d677f09)
 ExternalComponent_Get(aws_iot_mqtt_config https://github.com/mdvorak-iot/esp-aws-iot-mqtt-config.git da059444)
 ExternalComponent_Get(aws_iot_shadow https://github.com/mdvorak-iot/esp-aws-iot-shadow.git f37c6c4)
-ExternalLibrary_Get(rapidjson https://github.com/Tencent/rapidjson v1.1.0)
+ExternalLibrary_Get(rapidjson https://github.com/Tencent/rapidjson 1c2c8e0)
 
 # Project
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
