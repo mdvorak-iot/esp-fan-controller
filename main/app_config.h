@@ -28,10 +28,10 @@ struct hw_config_sensor
 struct hw_config
 {
     gpio_num_t status_led_pin = GPIO_NUM_NC;
-    bool status_led_on_state;
-    gpio_num_t pwm_pin;
-    bool pwm_inverted_duty;
-    gpio_num_t sensors_pin;
+    bool status_led_on_state = true;
+    gpio_num_t pwm_pin = GPIO_NUM_NC;
+    bool pwm_inverted_duty = false;
+    gpio_num_t sensors_pin = GPIO_NUM_NC;
     std::string primary_sensor_address;
     std::vector<gpio_num_t> rpm_pins;
     std::vector<hw_config_sensor> sensors;

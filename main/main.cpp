@@ -302,15 +302,9 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
     ESP_LOGD(TAG, "shadow accepted event %d", event_id);
     auto *event = (const struct aws_iot_shadow_event_data *)event_data;
 
-    //    esp_err_t err = ESP_OK;
-
     // Parse
-    // NOTE this is only handler, so we can intentionally destroy original json, and avoid string duplication during parsing
     rapidjson::Document doc;
-
-    rapidjson::MemoryStream ms(const_cast<char *>(event->data), event->data_len);
-    rapidjson::EncodedInputStream<rapidjson::Document::EncodingType, rapidjson::MemoryStream> is(ms);
-    doc.ParseStream<rapidjson::kParseInsituFlag, rapidjson::Document::EncodingType>(is);
+    doc.Parse(event->data, event->data_len);
 
     auto *desired = JSON_PTR_STATE_DESIRED.Get(doc);
 
@@ -349,7 +343,7 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
     }
 
     // Re-use document
-    doc.Clear();
+    rapidjson::Value(rapidjson::kObjectType).Swap(doc); // Erase document
 
     auto &to_report_cfg = JSON_PTR_STATE_REPORT_CFG.Create(doc, doc.GetAllocator());
 
@@ -357,7 +351,7 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
     // NOTE this is needed, since we restart on config change
     hw_config_state->set(to_report_cfg, doc.GetAllocator(), hw_config);
 
-    if (event->event_id == AWS_IOT_SHADOW_EVENT_GET_ACCEPTED)
+    if (event->event_id == AWS_IOT_SHADOW_EVENT_GET_ACCEPTED && sensors != nullptr)
     {
         for (size_t i = 0; i < sensors->count; i++)
         {
