@@ -332,7 +332,6 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
 {
     ESP_LOGE(TAG, "heapA1: %u", esp_get_free_heap_size());
 
-
     ESP_LOGD(TAG, "shadow accepted event %d", event_id);
     auto *event = (const struct aws_iot_shadow_event_data *)event_data;
 
@@ -350,6 +349,7 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
     }
 
     // Handle change
+    uint64_t version = doc.HasMember("version") && doc["version"].IsUint64() ? doc["version"].GetUint64() : 0;
     auto *desired_cfg = JSON_PTR_CFG.Get(*desired);
 
     if (desired_cfg && desired_cfg->IsObject())
@@ -360,22 +360,34 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
 
         if (err == ESP_OK)
         {
-            ESP_LOGI(TAG, "parsing hw_config");
             dump_hw_config();
 
-            if ((should_restart = hw_config_state->get(*desired_cfg, hw_config)))
+            uint64_t current_version = 0;
+            err = handle->get_item("$version", current_version);
+
+            // Ignore same version
+            if (version == 0 || version != current_version)
             {
-                ESP_LOGI(TAG, "parsed hw_config");
-                dump_hw_config();
-                ESP_LOGI(TAG, "storing hw_config");
-                hw_config_state->store(*handle, nullptr, hw_config);
-                ESP_LOGI(TAG, "hw_config stored successfully");
+                ESP_LOGI(TAG, "parsing hw_config");
+                if ((should_restart = hw_config_state->get(*desired_cfg, hw_config)))
+                {
+                    ESP_LOGI(TAG, "parsed hw_config");
+                    dump_hw_config();
+                    ESP_LOGI(TAG, "storing hw_config");
+                    hw_config_state->store(*handle, nullptr, hw_config);
+                    ESP_LOGI(TAG, "hw_config stored successfully");
+                }
+
+                // TODO rest of the config
+
+                // Commit
+                handle->set_item("$version", version);
+                handle->commit();
             }
-
-            // TODO rest of the config
-
-            // Commit
-            handle->commit();
+            else
+            {
+                ESP_LOGI(TAG, "same hw_config version %" PRIu64 ", skipping", version);
+            }
         }
         else
         {
