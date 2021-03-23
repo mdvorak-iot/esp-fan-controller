@@ -152,6 +152,26 @@ static void wps_event_handler(__unused void *arg, esp_event_base_t event_base,
     }
 }
 
+static void dump_json(const rapidjson::Value &val)
+{
+    ESP_LOGE(TAG, "heap2: %ud", esp_get_free_heap_size());
+    rapidjson::StringBuffer dump;
+    rapidjson::Writer<rapidjson::StringBuffer> dump_writer(dump);
+    ESP_LOGE(TAG, "heap3: %ud", esp_get_free_heap_size());
+    val.Accept(dump_writer);
+    ESP_LOGE(TAG, "heap4: %ud", esp_get_free_heap_size());
+
+    ESP_LOGI(TAG, "hw_config:\n%s", dump.GetString());
+}
+
+static void dump_hw_config()
+{
+    ESP_LOGE(TAG, "heap1: %ud", esp_get_free_heap_size());
+    rapidjson::Document dump_doc;
+    hw_config_state->set(dump_doc, dump_doc.GetAllocator(), hw_config);
+    dump_json(dump_doc);
+}
+
 static void setup_init()
 {
     // State
@@ -181,6 +201,18 @@ static void setup_init()
     }
 
     // Load app_config
+    {
+        auto handle = nvs::open_nvs_handle(APP_CONFIG_NVS_NAME, NVS_READONLY, &err);
+        if (err == ESP_OK)
+        {
+            hw_config_state->load(*handle, nullptr, hw_config);
+        }
+        else
+        {
+            ESP_LOGW(TAG, "failed to load hw_config, using defaults: %d %s", err, esp_err_to_name(err));
+        }
+    }
+
     app_config_init_defaults(&app_config);
     // TODO
     //    err = app_config_load(&app_config);
@@ -200,10 +232,9 @@ static void setup_init()
 
     // Dump current config JSON
 #ifndef NDEBUG
-    rapidjson::StringBuffer dump;
-    rapidjson::Writer<rapidjson::StringBuffer> dump_writer(dump);
-    app_config_write(&app_config, dump_writer);
-    ESP_LOGI(TAG, "initial app_config:\n%s", dump.GetString());
+    ESP_LOGE(TAG, "heap0: %ud", esp_get_free_heap_size());
+    dump_hw_config();
+    ESP_LOGE(TAG, "heap6: %ud", esp_get_free_heap_size());
 #endif
 }
 
@@ -299,12 +330,16 @@ static const rapidjson::Pointer JSON_PTR_STATE_REPORT_CFG("/state/reported/cfg")
 static void shadow_event_handler_state_accepted(__unused void *handler_args, __unused esp_event_base_t event_base,
                                                 int32_t event_id, void *event_data)
 {
+    ESP_LOGE(TAG, "heapA1: %u", esp_get_free_heap_size());
+
+
     ESP_LOGD(TAG, "shadow accepted event %d", event_id);
     auto *event = (const struct aws_iot_shadow_event_data *)event_data;
 
     // Parse
     rapidjson::Document doc;
     doc.Parse(event->data, event->data_len);
+    ESP_LOGE(TAG, "heapA2: %u", esp_get_free_heap_size());
 
     auto *desired = JSON_PTR_STATE_DESIRED.Get(doc);
 
@@ -320,19 +355,32 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
     if (desired_cfg && desired_cfg->IsObject())
     {
         esp_err_t err = ESP_OK;
+        bool should_restart = false;
         auto handle = nvs::open_nvs_handle(APP_CONFIG_NVS_NAME, NVS_READWRITE, &err);
 
-        bool should_restart = false;
-        if ((should_restart = hw_config_state->get(*desired_cfg, hw_config)))
+        if (err == ESP_OK)
         {
-            hw_config_state->store(*handle, nullptr, hw_config);
-            ESP_LOGI(TAG, "hw_config stored successfully");
+            ESP_LOGI(TAG, "parsing hw_config");
+            dump_hw_config();
+
+            if ((should_restart = hw_config_state->get(*desired_cfg, hw_config)))
+            {
+                ESP_LOGI(TAG, "parsed hw_config");
+                dump_hw_config();
+                ESP_LOGI(TAG, "storing hw_config");
+                hw_config_state->store(*handle, nullptr, hw_config);
+                ESP_LOGI(TAG, "hw_config stored successfully");
+            }
+
+            // TODO rest of the config
+
+            // Commit
+            handle->commit();
         }
-
-        // TODO rest of the config
-
-        // Commit
-        handle->commit();
+        else
+        {
+            ESP_LOGW(TAG, "failed to store hw_config: %d %s", err, esp_err_to_name(err));
+        }
 
         // And restart, since we cannot re-initialize some of the services
         if (should_restart)

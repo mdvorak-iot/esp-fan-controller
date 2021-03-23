@@ -42,9 +42,9 @@ struct hw_config
         state->add(new shadow_state_field<hw_config, gpio_num_t>("/statusLed/pin", &hw_config::status_led_pin));
         state->add(new shadow_state_field<hw_config, bool>("/statusLed/onState", &hw_config::status_led_on_state));
         state->add(new shadow_state_field<hw_config, gpio_num_t>("/pwm/pin", &hw_config::pwm_pin));
-        state->add(new shadow_state_field<hw_config, bool>("/pwm/onState", &hw_config::pwm_inverted_duty));
+        state->add(new shadow_state_field<hw_config, bool>("/pwm/invert", &hw_config::pwm_inverted_duty));
         state->add(new shadow_state_field<hw_config, gpio_num_t>("/sensor/pin", &hw_config::sensors_pin));
-        state->add(new shadow_state_field<hw_config, std::string>("/sensor/primary_addr", &hw_config::primary_sensor_address));
+        state->add(new shadow_state_field<hw_config, std::string>("/sensor/primaryAddr", &hw_config::primary_sensor_address));
         state->add(new shadow_state_list<hw_config, hw_config_sensor>("/sensors", &hw_config::sensors, hw_config_sensor::state()));
         state->add(new shadow_state_list<hw_config, gpio_num_t>("/rpm/pins", &hw_config::rpm_pins, new shadow_state_value<gpio_num_t>("")));
 

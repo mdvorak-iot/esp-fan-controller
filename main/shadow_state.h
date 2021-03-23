@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstring>
+#include <esp_log.h>
 #include <functional>
 #include <nvs_handle.hpp>
 #include <rapidjson/pointer.h>
@@ -8,15 +9,15 @@
 #include <vector>
 
 // TODO move to cpp, rename
-static const char *nvs_key(const std::string &s)
+inline static std::string nvs_key(const std::string &s)
 {
-    return s.empty() ? "" : &s[1]; // Skip leading '/' char
+    return !s.empty() && s[0] == '/' ? s.substr(1, std::string::npos) : s; // Skip leading '/' char
 }
 
 static const char *nvs_key(const char *s)
 {
     assert(s);
-    return *s != '\0' ? s + 1 : s; // Skip leading '/' char
+    return *s == '/' ? s + 1 : s; // Skip leading '/' char
 }
 
 template<typename S>
@@ -34,11 +35,13 @@ struct shadow_state
     virtual bool get(const rapidjson::Value &root, S &inst) const = 0;
     virtual void set(rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator, const S &inst) const = 0;
 
+    // TODO propagate error
     void load(nvs::NVSHandle &handle, S &inst) const
     {
         load(handle, nullptr, inst);
     }
 
+    // TODO propagate error
     void store(nvs::NVSHandle &handle, const S &inst) const
     {
         store(handle, nullptr, inst);
@@ -144,12 +147,22 @@ struct shadow_state_helper
 
     static void load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, T &value)
     {
-        handle.get_item<T>(nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key), value);
+        const std::string full_key = nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key);
+        esp_err_t err = handle.get_item<T>(full_key.c_str(), value);
+        if (err != ESP_OK)
+        {
+            ESP_LOGW("shadow_state", "failed to get_item %s: %d %s", full_key.c_str(), err, esp_err_to_name(err));
+        }
     }
 
     static void store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const T &value)
     {
-        handle.set_item<T>(nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key), value);
+        const std::string full_key = nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key);
+        esp_err_t err = handle.set_item<T>(full_key.c_str(), value);
+        if (err != ESP_OK)
+        {
+            ESP_LOGW("shadow_state", "failed to set_item %s: %d %s", full_key.c_str(), err, esp_err_to_name(err));
+        }
     }
 };
 
