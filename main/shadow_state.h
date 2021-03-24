@@ -35,20 +35,9 @@ struct shadow_state
     virtual bool get(const rapidjson::Value &root, S &inst) const = 0;
     virtual void set(rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator, const S &inst) const = 0;
 
-    // TODO propagate error
-    void load(nvs::NVSHandle &handle, S &inst) const
-    {
-        load(handle, nullptr, inst);
-    }
-
-    // TODO propagate error
-    void store(nvs::NVSHandle &handle, const S &inst) const
-    {
-        store(handle, nullptr, inst);
-    }
-
-    virtual void load(nvs::NVSHandle &handle, const char *prefix, S &inst) const = 0;
-    virtual void store(nvs::NVSHandle &handle, const char *prefix, const S &inst) const = 0;
+    // TODO reorder to have prefix last with default value
+    virtual esp_err_t load(nvs::NVSHandle &handle, const char *prefix, S &inst) const = 0;
+    virtual esp_err_t store(nvs::NVSHandle &handle, const char *prefix, const S &inst) const = 0;
 };
 
 template<typename S>
@@ -89,20 +78,32 @@ struct shadow_state_set : shadow_state<S>
         }
     }
 
-    void load(nvs::NVSHandle &handle, const char *prefix, S &inst) const final
+    esp_err_t load(nvs::NVSHandle &handle, const char *prefix, S &inst) const final
     {
+        esp_err_t last_err = ESP_OK;
         for (auto state : states_)
         {
-            state->load(handle, prefix, inst);
+            esp_err_t err = state->load(handle, prefix, inst);
+            if (err != ESP_OK && (err != ESP_ERR_NVS_NOT_FOUND || last_err == ESP_OK)) // Don't overwrite more important error with NOT_FOUND
+            {
+                last_err = err;
+            }
         }
+        return last_err;
     }
 
-    void store(nvs::NVSHandle &handle, const char *prefix, const S &inst) const final
+    esp_err_t store(nvs::NVSHandle &handle, const char *prefix, const S &inst) const final
     {
+        esp_err_t last_err = ESP_OK;
         for (auto state : states_)
         {
-            state->store(handle, prefix, inst);
+            esp_err_t err = state->store(handle, prefix, inst);
+            if (err != ESP_OK)
+            {
+                last_err = err;
+            }
         }
+        return last_err;
     }
 
  private:
@@ -145,7 +146,7 @@ struct shadow_state_helper
         ptr.Set<T>(root, value, allocator);
     }
 
-    static void load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, T &value)
+    static esp_err_t load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, T &value)
     {
         const std::string full_key = nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key);
         esp_err_t err = handle.get_item<T>(full_key.c_str(), value);
@@ -153,9 +154,10 @@ struct shadow_state_helper
         {
             ESP_LOGW("shadow_state", "failed to get_item %s: %d %s", full_key.c_str(), err, esp_err_to_name(err));
         }
+        return err;
     }
 
-    static void store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const T &value)
+    static esp_err_t store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const T &value)
     {
         const std::string full_key = nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key);
         esp_err_t err = handle.set_item<T>(full_key.c_str(), value);
@@ -163,6 +165,7 @@ struct shadow_state_helper
         {
             ESP_LOGW("shadow_state", "failed to set_item %s: %d %s", full_key.c_str(), err, esp_err_to_name(err));
         }
+        return err;
     }
 };
 
@@ -173,22 +176,22 @@ template<>
 void shadow_state_helper<std::string>::set(const rapidjson::Pointer &ptr, rapidjson::Value &root, rapidjson::Value::AllocatorType &allocator, const std::string &value);
 
 template<>
-void shadow_state_helper<std::string>::load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, std::string &value);
+esp_err_t shadow_state_helper<std::string>::load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, std::string &value);
 
 template<>
-void shadow_state_helper<std::string>::store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const std::string &value);
+esp_err_t shadow_state_helper<std::string>::store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const std::string &value);
 
 template<>
-void shadow_state_helper<float>::load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, float &value);
+esp_err_t shadow_state_helper<float>::load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, float &value);
 
 template<>
-void shadow_state_helper<float>::store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const float &value);
+esp_err_t shadow_state_helper<float>::store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const float &value);
 
 template<>
-void shadow_state_helper<double>::load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, double &value);
+esp_err_t shadow_state_helper<double>::load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, double &value);
 
 template<>
-void shadow_state_helper<double>::store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const double &value);
+esp_err_t shadow_state_helper<double>::store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const double &value);
 
 template<typename S, typename T>
 struct shadow_state_field : shadow_state<S>
@@ -215,14 +218,14 @@ struct shadow_state_field : shadow_state<S>
         shadow_state_helper<T>::set(ptr, root, allocator, inst.*field);
     }
 
-    void load(nvs::NVSHandle &handle, const char *prefix, S &inst) const final
+    esp_err_t load(nvs::NVSHandle &handle, const char *prefix, S &inst) const final
     {
-        shadow_state_helper<T>::load(key, handle, prefix, inst.*field);
+        return shadow_state_helper<T>::load(key, handle, prefix, inst.*field);
     }
 
-    void store(nvs::NVSHandle &handle, const char *prefix, const S &inst) const final
+    esp_err_t store(nvs::NVSHandle &handle, const char *prefix, const S &inst) const final
     {
-        shadow_state_helper<T>::store(key, handle, prefix, inst.*field);
+        return shadow_state_helper<T>::store(key, handle, prefix, inst.*field);
     }
 };
 
@@ -248,14 +251,14 @@ struct shadow_state_value : shadow_state<T>
         shadow_state_helper<T>::set(ptr, root, allocator, inst);
     }
 
-    void load(nvs::NVSHandle &handle, const char *prefix, T &inst) const final
+    esp_err_t load(nvs::NVSHandle &handle, const char *prefix, T &inst) const final
     {
-        shadow_state_helper<T>::load(key, handle, prefix, inst);
+        return shadow_state_helper<T>::load(key, handle, prefix, inst);
     }
 
-    void store(nvs::NVSHandle &handle, const char *prefix, const T &inst) const final
+    esp_err_t store(nvs::NVSHandle &handle, const char *prefix, const T &inst) const final
     {
-        shadow_state_helper<T>::store(key, handle, prefix, inst);
+        return shadow_state_helper<T>::store(key, handle, prefix, inst);
     }
 };
 
@@ -332,7 +335,7 @@ struct shadow_state_list : shadow_state<S>
         }
     }
 
-    void load(nvs::NVSHandle &handle, const char *prefix, S &inst) const final
+    esp_err_t load(nvs::NVSHandle &handle, const char *prefix, S &inst) const final
     {
         char item_prefix[16] = {};
         if (!prefix) prefix = "";
@@ -348,14 +351,20 @@ struct shadow_state_list : shadow_state<S>
         items.resize(length);
 
         // Read items
+        esp_err_t last_err = ESP_OK;
         for (size_t i = 0; i < items.size(); i++)
         {
             std::snprintf(item_prefix, sizeof(item_prefix) - 1, "%s%s/%uz", prefix, key.c_str(), i);
-            element->load(handle, nvs_key(item_prefix), items[i]);
+            esp_err_t err = element->load(handle, nvs_key(item_prefix), items[i]);
+            if (err != ESP_OK && (err != ESP_ERR_NVS_NOT_FOUND || last_err == ESP_OK)) // Don't overwrite more important error with NOT_FOUND
+            {
+                last_err = err;
+            }
         }
+        return last_err;
     }
 
-    void store(nvs::NVSHandle &handle, const char *prefix, const S &inst) const final
+    esp_err_t store(nvs::NVSHandle &handle, const char *prefix, const S &inst) const final
     {
         char item_prefix[16] = {};
         if (!prefix) prefix = "";
@@ -367,10 +376,16 @@ struct shadow_state_list : shadow_state<S>
         handle.set_item(nvs_key(item_prefix), static_cast<uint16_t>(items.size())); // No need to store all 32 bytes, that would never fit in memory
 
         // Store items
+        esp_err_t last_err = ESP_OK;
         for (size_t i = 0; i < items.size(); i++)
         {
             std::snprintf(item_prefix, sizeof(item_prefix) - 1, "%s%s/%uz", prefix, key.c_str(), i);
-            element->store(handle, nvs_key(item_prefix), items[i]);
+            esp_err_t err = element->store(handle, nvs_key(item_prefix), items[i]);
+            if (err != ESP_OK)
+            {
+                last_err = err;
+            }
         }
+        return last_err;
     }
 };

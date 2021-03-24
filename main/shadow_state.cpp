@@ -28,7 +28,7 @@ void shadow_state_helper<std::string>::set(const rapidjson::Pointer &ptr, rapidj
 }
 
 template<>
-void shadow_state_helper<std::string>::load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, std::string &value)
+esp_err_t shadow_state_helper<std::string>::load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, std::string &value)
 {
     const std::string full_key = nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key);
 
@@ -41,7 +41,7 @@ void shadow_state_helper<std::string>::load(const std::string &key, nvs::NVSHand
         if (len == 0)
         {
             value.resize(0);
-            return;
+            return ESP_OK;
         }
 
         // Read and store string
@@ -58,10 +58,11 @@ void shadow_state_helper<std::string>::load(const std::string &key, nvs::NVSHand
     {
         ESP_LOGW("shadow_state", "failed to get_string %s: %d %s", full_key.c_str(), err, esp_err_to_name(err));
     }
+    return err;
 }
 
 template<>
-void shadow_state_helper<std::string>::store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const std::string &value)
+esp_err_t shadow_state_helper<std::string>::store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const std::string &value)
 {
     // NOTE this will strip string if it contains \0 character
     const std::string full_key = nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key);
@@ -71,10 +72,11 @@ void shadow_state_helper<std::string>::store(const std::string &key, nvs::NVSHan
     {
         ESP_LOGW("shadow_state", "failed to set_string %s: %d %s", full_key.c_str(), err, esp_err_to_name(err));
     }
+    return err;
 }
 
 template<>
-void shadow_state_helper<float>::load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, float &value)
+esp_err_t shadow_state_helper<float>::load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, float &value)
 {
     const std::string full_key = nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key);
 
@@ -89,10 +91,11 @@ void shadow_state_helper<float>::load(const std::string &key, nvs::NVSHandle &ha
     {
         ESP_LOGW("shadow_state", "failed to get_item %s: %d %s", full_key.c_str(), err, esp_err_to_name(err));
     }
+    return err;
 }
 
 template<>
-void shadow_state_helper<float>::store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const float &value)
+esp_err_t shadow_state_helper<float>::store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const float &value)
 {
     static_assert(sizeof(uint32_t) >= sizeof(float));
 
@@ -106,10 +109,11 @@ void shadow_state_helper<float>::store(const std::string &key, nvs::NVSHandle &h
     {
         ESP_LOGW("shadow_state", "failed to set_item %s: %d %s", full_key.c_str(), err, esp_err_to_name(err));
     }
+    return err;
 }
 
 template<>
-void shadow_state_helper<double>::load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, double &value)
+esp_err_t shadow_state_helper<double>::load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, double &value)
 {
     const std::string full_key = nvs_key(prefix && prefix[0] != '\0' ? prefix + key : key);
 
@@ -124,10 +128,11 @@ void shadow_state_helper<double>::load(const std::string &key, nvs::NVSHandle &h
     {
         ESP_LOGW("shadow_state", "failed to get_item %s: %d %s", full_key.c_str(), err, esp_err_to_name(err));
     }
+    return err;
 }
 
 template<>
-void shadow_state_helper<double>::store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const double &value)
+esp_err_t shadow_state_helper<double>::store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const double &value)
 {
     static_assert(sizeof(uint64_t) >= sizeof(double));
 
@@ -141,4 +146,5 @@ void shadow_state_helper<double>::store(const std::string &key, nvs::NVSHandle &
     {
         ESP_LOGW("shadow_state", "failed to set_item %s: %d %s", full_key.c_str(), err, esp_err_to_name(err));
     }
+    return err;
 }

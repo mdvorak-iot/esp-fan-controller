@@ -11,15 +11,19 @@ bool shadow_state_helper<gpio_num_t>::get(const rapidjson::Pointer &ptr, const r
 }
 
 template<>
-void shadow_state_helper<gpio_num_t>::load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, gpio_num_t &value)
+esp_err_t shadow_state_helper<gpio_num_t>::load(const std::string &key, nvs::NVSHandle &handle, const char *prefix, gpio_num_t &value)
 {
     int num = value;
-    shadow_state_helper<int>::load(key, handle, prefix, num);
-    value = static_cast<gpio_num_t>(num);
+    esp_err_t err = shadow_state_helper<int>::load(key, handle, prefix, num);
+    if (err == ESP_OK)
+    {
+        value = static_cast<gpio_num_t>(num);
+    }
+    return err;
 }
 
 template<>
-void shadow_state_helper<gpio_num_t>::store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const gpio_num_t &value)
+esp_err_t shadow_state_helper<gpio_num_t>::store(const std::string &key, nvs::NVSHandle &handle, const char *prefix, const gpio_num_t &value)
 {
-    shadow_state_helper<int>::store(key, handle, prefix, static_cast<int>(value));
+    return shadow_state_helper<int>::store(key, handle, prefix, static_cast<int>(value));
 }
