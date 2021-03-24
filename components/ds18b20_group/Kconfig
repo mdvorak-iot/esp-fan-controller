@@ -1,0 +1,7 @@
+menu "DS18B20 Group"
+    config DS18B20_GROUP_MAX_SIZE
+        int "Max number of devices in a group"
+        default 10
+        help
+            Maximum supported number of devices in one group
+endmenu
