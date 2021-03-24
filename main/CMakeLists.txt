@@ -18,9 +18,5 @@ idf_component_register(
         esp32-ds18b20
         aws_iot_mqtt_config
         aws_iot_shadow
+        config_state
 )
-
-target_link_libraries(${COMPONENT_LIB} PRIVATE rapidjson)
-
-# TODO make this global
-target_compile_definitions(${COMPONENT_LIB} PUBLIC -DRAPIDJSON_HAS_STDSTRING=1 -DRAPIDJSON_ALLOCATOR_DEFAULT_CHUNK_CAPACITY=1024 -DRAPIDJSON_VALUE_DEFAULT_ARRAY_CAPACITY=4 -DRAPIDJSON_VALUE_DEFAULT_OBJECT_CAPACITY=4)

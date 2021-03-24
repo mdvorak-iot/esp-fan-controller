@@ -168,7 +168,7 @@ static void dump_hw_config()
 {
     ESP_LOGE(TAG, "heap1: %ud", esp_get_free_heap_size());
     rapidjson::Document dump_doc;
-    hw_config_state->set(dump_doc, dump_doc.GetAllocator(), hw_config);
+    hw_config_state->write(hw_config, dump_doc, dump_doc.GetAllocator());
     dump_json(dump_doc);
 }
 
@@ -205,7 +205,7 @@ static void setup_init()
         auto handle = nvs::open_nvs_handle(APP_CONFIG_NVS_NAME, NVS_READONLY, &err);
         if (err == ESP_OK)
         {
-            hw_config_state->load(*handle, nullptr, hw_config);
+            hw_config_state->load(hw_config, *handle);
         }
         else
         {
@@ -369,12 +369,12 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
             if (version == 0 || version != current_version)
             {
                 ESP_LOGI(TAG, "parsing hw_config");
-                if ((should_restart = hw_config_state->get(*desired_cfg, hw_config)))
+                if ((should_restart = hw_config_state->read(hw_config, *desired_cfg)))
                 {
                     ESP_LOGI(TAG, "parsed hw_config");
                     dump_hw_config();
                     ESP_LOGI(TAG, "storing hw_config");
-                    hw_config_state->store(*handle, nullptr, hw_config);
+                    hw_config_state->store(hw_config, *handle);
                     ESP_LOGI(TAG, "hw_config stored successfully");
                 }
 
@@ -409,7 +409,7 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
 
     // Report always
     // NOTE this is needed, since we restart on config change
-    hw_config_state->set(to_report_cfg, doc.GetAllocator(), hw_config);
+    hw_config_state->write(hw_config, to_report_cfg, doc.GetAllocator());
 
     if (event->event_id == AWS_IOT_SHADOW_EVENT_GET_ACCEPTED && sensors != nullptr)
     {
