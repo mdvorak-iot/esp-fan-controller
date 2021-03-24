@@ -38,7 +38,6 @@ static const auto STATE_BIT_SHADOW_READY = BIT2;
 
 // Configuration
 static EventGroupHandle_t state;
-static app_config_t app_config = {};
 static status_led_handle_ptr status_led;
 static esp_mqtt_client_handle_t mqtt_client = nullptr;
 static aws_iot_shadow_handle_ptr shadow_client = nullptr;
@@ -105,13 +104,13 @@ static void do_restart()
 static esp_err_t set_fan_duty(float duty_percent)
 {
     // Ignore disabled
-    if (app_config.pwm_pin == GPIO_NUM_NC)
+    if (hw_config.pwm_pin == GPIO_NUM_NC)
     {
         return ESP_OK;
     }
 
     // Invert
-    esp_err_t err = fan_control_set_duty(PWM_CHANNEL, app_config.pwm_inverted_duty ? 1 - duty_percent : duty_percent);
+    esp_err_t err = fan_control_set_duty(PWM_CHANNEL, hw_config.pwm_inverted_duty ? 1 - duty_percent : duty_percent);
     if (err == ESP_OK)
     {
         fan_duty_percent = duty_percent;
@@ -213,16 +212,8 @@ static void setup_init()
         }
     }
 
-    app_config_init_defaults(&app_config);
-    // TODO
-    //    err = app_config_load(&app_config);
-    if (err != ESP_OK)
-    {
-        ESP_LOGW(TAG, "failed to load app_config, using defaults");
-    }
-
     // Status LED
-    ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_create(app_config.status_led_pin, app_config.status_led_on_state, &status_led));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_create(hw_config.status_led_pin, hw_config.status_led_on_state, &status_led));
     ESP_ERROR_CHECK_WITHOUT_ABORT(status_led_set_interval(status_led, STATUS_LED_CONNECTING_INTERVAL, true));
 
     // Events
@@ -241,7 +232,7 @@ static void setup_init()
 static void setup_fans()
 {
     // Configure fan pwm
-    ESP_ERROR_CHECK_WITHOUT_ABORT(fan_control_config(app_config.pwm_pin, PWM_TIMER, PWM_CHANNEL));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(fan_control_config(hw_config.pwm_pin, PWM_TIMER, PWM_CHANNEL));
     ESP_ERROR_CHECK_WITHOUT_ABORT(set_fan_duty(0.9));
 
     // Fan metrics
@@ -257,14 +248,14 @@ static void setup_fans()
 static void setup_sensors()
 {
     // Skip if not configured
-    if (app_config.sensors_pin < 0 || !GPIO_IS_VALID_GPIO(app_config.sensors_pin))
+    if (hw_config.sensors_pin < 0 || !GPIO_IS_VALID_GPIO(hw_config.sensors_pin))
     {
         ESP_LOGW(TAG, "sensor_pin not valid, skipping sensors config");
         return;
     }
 
     // Initialize OneWireBus
-    owb_rmt_initialize(&owb_driver, app_config.sensors_pin, SENSORS_RMT_CHANNEL_TX, SENSORS_RMT_CHANNEL_RX);
+    owb_rmt_initialize(&owb_driver, hw_config.sensors_pin, SENSORS_RMT_CHANNEL_TX, SENSORS_RMT_CHANNEL_RX);
     owb_use_crc(&owb_driver.bus, true);
 
     // Temperature sensors
@@ -284,12 +275,12 @@ static void setup_sensors()
         sensor_configs[i].name = addr_str;
         sensor_configs[i].offset_c = 0;
 
-        for (auto &sensor : app_config.sensors)
+        for (auto &sensor : hw_config.sensors)
         {
-            if (addr == sensor.address)
+            if (sensor.address == addr_str)
             {
-                ESP_LOGD(TAG, "found sensor %s config: '%s' %.3f", addr_str, sensor.name, sensor.offset_c);
-                sensor_configs[i].name = strlen(sensor.name) ? sensor.name : addr_str; // configured name or address as a name
+                ESP_LOGD(TAG, "found sensor %s config: '%s' %.3f", addr_str, sensor.name.c_str(), sensor.offset_c);
+                sensor_configs[i].name = !sensor.name.empty() ? sensor.name : addr_str; // configured name or address as a name
                 sensor_configs[i].offset_c = sensor.offset_c;
             }
         }
@@ -354,8 +345,8 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
 
     if (desired_cfg && desired_cfg->IsObject())
     {
-        esp_err_t err = ESP_OK;
         bool should_restart = false;
+        esp_err_t err = ESP_OK;
         auto handle = nvs::open_nvs_handle(APP_CONFIG_NVS_NAME, NVS_READWRITE, &err);
 
         if (err == ESP_OK)
@@ -363,7 +354,7 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
             dump_hw_config();
 
             uint64_t current_version = 0;
-            err = handle->get_item("$version", current_version);
+            handle->get_item("$version", current_version);
 
             // Ignore same version
             if (version == 0 || version != current_version)
@@ -374,8 +365,15 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
                     ESP_LOGI(TAG, "parsed hw_config");
                     dump_hw_config();
                     ESP_LOGI(TAG, "storing hw_config");
-                    hw_config_state->store(hw_config, *handle);
-                    ESP_LOGI(TAG, "hw_config stored successfully");
+                    err = hw_config_state->store(hw_config, *handle);
+                    if (err == ESP_OK)
+                    {
+                        ESP_LOGI(TAG, "hw_config stored successfully");
+                    }
+                    else
+                    {
+                        ESP_LOGW(TAG, "failed to store hw_config: %d %s", err, esp_err_to_name(err));
+                    }
                 }
 
                 // TODO rest of the config
