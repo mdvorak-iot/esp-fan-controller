@@ -317,6 +317,7 @@ static void mqtt_event_handler(__unused void *handler_args, __unused esp_event_b
 static const rapidjson::Pointer JSON_PTR_STATE_DESIRED("/state/desired");
 static const rapidjson::Pointer JSON_PTR_CFG("/cfg");
 static const rapidjson::Pointer JSON_PTR_STATE_REPORT_CFG("/state/reported/cfg");
+static const rapidjson::Pointer JSON_PTR_STATE_REPORT_SENSORS("/state/reported/sensors");
 
 static void shadow_event_handler_state_accepted(__unused void *handler_args, __unused esp_event_base_t event_base,
                                                 int32_t event_id, void *event_data)
@@ -411,17 +412,11 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
 
     if (event->event_id == AWS_IOT_SHADOW_EVENT_GET_ACCEPTED && sensors != nullptr)
     {
+        auto &sensors_obj = JSON_PTR_STATE_REPORT_SENSORS.Create(doc, doc.GetAllocator()).SetArray();
+
         for (size_t i = 0; i < sensors->count; i++)
         {
-            //                cJSON *sensor_obj = cJSON_CreateObject();
-            //                cJSON_AddStringToObject(sensor_obj, APP_CONFIG_KEY_SENSOR_ADDRESS, sensor_configs[i].address.c_str());
-            //
-            //                if (memcmp(sensors->devices[i].rom_code.bytes, &app_config.primary_sensor_address, sizeof(uint64_t)) == 0)
-            //                {
-            //                    cJSON_AddBoolToObject(sensor_obj, "is_primary", true);
-            //                }
-            //
-            //                cJSON_AddItemToArray(sensors_obj, sensor_obj);
+            sensors_obj.PushBack(rapidjson::StringRef(sensor_configs[i].address), doc.GetAllocator());
         }
     }
 
