@@ -6,7 +6,7 @@ static const char TAG[] = "fan_control";
 
 static const uint32_t FAN_CONTROL_FREQ_HZ = 25000;
 static const ledc_timer_bit_t FAN_CONTROL_RESOLUTION = LEDC_TIMER_10_BIT;
-static const uint32_t FAN_CONTROL_MAX_DUTY = (1u << FAN_CONTROL_RESOLUTION) - 1;
+static const float FAN_CONTROL_MAX_DUTY = (float)((1u << FAN_CONTROL_RESOLUTION) - 1);
 
 esp_err_t fan_control_config(gpio_num_t pin, ledc_timer_t timer, ledc_channel_t channel)
 {
@@ -46,6 +46,6 @@ esp_err_t fan_control_set_duty(ledc_channel_t channel, float duty_percent)
         return ESP_ERR_INVALID_ARG;
     }
 
-    uint32_t duty = duty_percent * FAN_CONTROL_MAX_DUTY;
+    uint32_t duty = (uint32_t)(duty_percent * FAN_CONTROL_MAX_DUTY);
     return ledc_set_duty_and_update(LEDC_HIGH_SPEED_MODE, channel, duty, 0);
 }
