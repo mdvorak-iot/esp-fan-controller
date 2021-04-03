@@ -203,7 +203,7 @@ static void setup_init()
         auto handle = nvs::open_nvs_handle(APP_CONFIG_NVS_NAME, NVS_READONLY, &err);
         if (err == ESP_OK)
         {
-            hw_config::STATE->load(hw_config, *handle);
+            hw_config::STATE->load(hw_config, handle);
         }
         else
         {
@@ -365,7 +365,7 @@ static void shadow_event_handler_state_accepted(__unused void *handler_args, __u
                     ESP_LOGI(TAG, "parsed hw_config");
                     dump_hw_config();
                     ESP_LOGI(TAG, "storing hw_config");
-                    err = hw_config::STATE->store(hw_config, *handle);
+                    err = hw_config::STATE->store(hw_config, handle);
                     if (err == ESP_OK)
                     {
                         ESP_LOGI(TAG, "hw_config stored successfully");
