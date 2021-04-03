@@ -1,6 +1,6 @@
 idf_component_register(
-        SRC_DIRS src
-        INCLUDE_DIRS src
+        SRCS src/ds18b20_group.c
+        INCLUDE_DIRS include
         REQUIRES
         esp32-owb
         esp32-ds18b20
