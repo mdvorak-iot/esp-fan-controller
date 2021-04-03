@@ -25,5 +25,5 @@ esp_err_t metrics_http_handler(httpd_req_t *req)
     // Send response
     std::string body = out.str();
     ESP_ERROR_CHECK_WITHOUT_ABORT(httpd_resp_set_type(req, "text/plain"));
-    return httpd_resp_send(req, body.c_str(), body.length());
+    return httpd_resp_send(req, body.c_str(), (ssize_t)body.length());
 }
