@@ -10,14 +10,14 @@ struct hw_config_sensor
     std::string name;
     float offset_c = 0.0f;
 
-    static config_state_set<hw_config_sensor> *state()
+    static std::unique_ptr<config_state<hw_config_sensor>> state()
     {
         auto *state = new config_state_set<hw_config_sensor>();
         state->add_field(&hw_config_sensor::address, "/addr", "/a");
         state->add_field(&hw_config_sensor::name, "/name", "/n");
         state->add_field(&hw_config_sensor::offset_c, "/offsetC", "/of");
 
-        return state;
+        return std::unique_ptr<config_state<hw_config_sensor>>(state);
     }
 };
 
@@ -32,7 +32,7 @@ struct hw_config
     std::vector<gpio_num_t> rpm_pins;
     std::vector<hw_config_sensor> sensors;
 
-    static config_state_set<hw_config> *state()
+    static std::unique_ptr<config_state_set<hw_config>> state()
     {
         auto *state = new config_state_set<hw_config>();
         state->add_field(&hw_config::status_led_pin, "/statusLed/pin", "/led/pin");
@@ -40,12 +40,14 @@ struct hw_config
         state->add_field(&hw_config::pwm_pin, "/pwm/pin");
         state->add_field(&hw_config::pwm_inverted_duty, "/pwm/invert");
         state->add_value_list(&hw_config::rpm_pins, "/rpm/pins");
-        state->add_field(&hw_config::sensors_pin, "/sensor/pin", "/sens/pin");
-        state->add_field(&hw_config::primary_sensor_address, "/sensor/primaryAddr", "/sens/primary");
-        state->add_list(&hw_config::sensors, "/sensors", "/sens", hw_config_sensor::state());
+        state->add_field(&hw_config::sensors_pin, "/sensors/pin", "/sens/pin");
+        state->add_field(&hw_config::primary_sensor_address, "/sensors/primaryAddr", "/sens/primary");
+        state->add_list(&hw_config::sensors, "/sensors/list", "/sensLst", hw_config_sensor::state());
 
-        return state;
+        return std::unique_ptr<config_state_set<hw_config>>(state);
     }
+
+    static const std::unique_ptr<const config_state_set<hw_config>> STATE;
 };
 
 char *app_config_print_address(char *buf, size_t buf_len, uint64_t value);

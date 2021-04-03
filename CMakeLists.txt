@@ -10,7 +10,7 @@ ExternalComponent_Get(esp32-owb https://github.com/DavidAntliff/esp32-owb.git b2
 ExternalComponent_Get(esp32-ds18b20 https://github.com/DavidAntliff/esp32-ds18b20.git d677f09)
 ExternalComponent_Get(aws_iot_mqtt_config https://github.com/mdvorak-iot/esp-aws-iot-mqtt-config.git da059444)
 ExternalComponent_Get(aws_iot_shadow https://github.com/mdvorak-iot/esp-aws-iot-shadow.git f37c6c4)
-ExternalComponent_Get(config_state https://github.com/mdvorak-iot/esp-config-state.git 56334530)
+ExternalComponent_Get(config_state https://github.com/mdvorak-iot/esp-config-state.git f7d28d13)
 ExternalLibrary_Get(rapidjson https://github.com/Tencent/rapidjson 1c2c8e0)
 
 # Project
@@ -20,4 +20,4 @@ project(esp-fan-controller)
 # rapidjson
 add_library(rapidjson INTERFACE)
 target_include_directories(rapidjson INTERFACE ${rapidjson_SOURCE_DIR}/include)
-target_compile_definitions(rapidjson INTERFACE RAPIDJSON_HAS_STDSTRING=1 RAPIDJSON_ALLOCATOR_DEFAULT_CHUNK_CAPACITY=1024 RAPIDJSON_VALUE_DEFAULT_ARRAY_CAPACITY=6 RAPIDJSON_VALUE_DEFAULT_OBJECT_CAPACITY=10)
+target_compile_definitions(rapidjson INTERFACE RAPIDJSON_HAS_STDSTRING=1 RAPIDJSON_ALLOCATOR_DEFAULT_CHUNK_CAPACITY=1024 RAPIDJSON_VALUE_DEFAULT_ARRAY_CAPACITY=10 RAPIDJSON_VALUE_DEFAULT_OBJECT_CAPACITY=10)

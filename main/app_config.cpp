@@ -2,10 +2,7 @@
 #include <esp_log.h>
 #include <nvs_handle.hpp>
 
-inline static bool is_valid_gpio_num(int pin)
-{
-    return pin == GPIO_NUM_NC || (pin >= 0 && GPIO_IS_VALID_GPIO(pin));
-}
+const std::unique_ptr<const config_state_set<hw_config>> hw_config::STATE = hw_config::state();
 
 char *app_config_print_address(char *buf, size_t buf_len, uint64_t value)
 {
