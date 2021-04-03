@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.16.0)
 include(ExternalComponent.cmake)
 
+# owb (must be before components)
+add_compile_definitions(GPIO_NUM_NC=GPIO_NUM_NC) # owb have broken define
+
 # Components
 ExternalComponent_Get(double_reset https://github.com/mdvorak-iot/esp-double-reset.git v1.0.0)
 ExternalComponent_Get(status_led https://github.com/mdvorak-iot/esp-status-led.git 1fe88e4)
