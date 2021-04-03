@@ -1,4 +1,4 @@
-#include "app_config.h"
+#include "hw_config.h"
 #include <esp_log.h>
 #include <nvs_handle.hpp>
 

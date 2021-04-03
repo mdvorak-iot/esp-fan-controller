@@ -1,6 +1,6 @@
-#include "app_config.h"
 #include "ds18b20_group.h"
 #include "fan_control.h"
+#include "hw_config.h"
 #include "metrics.h"
 #include "web_server.h"
 
