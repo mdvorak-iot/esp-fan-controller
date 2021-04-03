@@ -3,9 +3,6 @@
 #include "hw_config.h"
 #include "metrics.h"
 #include "web_server.h"
-
-#include <new>
-
 #include <aws_iot_mqtt_config.h>
 #include <aws_iot_shadow.h>
 #include <aws_iot_shadow_mqtt_error.h>
@@ -17,9 +14,6 @@
 #include <freertos/event_groups.h>
 #include <mqtt_client.h>
 #include <nvs_flash.h>
-#include <rapidjson/document.h>
-#include <rapidjson/pointer.h>
-#include <rapidjson/writer.h>
 #include <status_led.h>
 #include <wifi_reconnect.h>
 #include <wps_config.h>
