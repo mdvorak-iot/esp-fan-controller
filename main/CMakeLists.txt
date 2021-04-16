@@ -8,14 +8,14 @@ idf_component_register(
         esp32
         esp_wifi
         app_update
+        wifi_provisioning
+        esp_rainmaker
+        rmaker_common
         esp_http_server
-        json
         double_reset
         status_led
-        wps_config
         wifi_reconnect
+        app_wifi
+        rainmaker_init
         ds18b20_group
-        aws_iot_mqtt_config
-        aws_iot_shadow
-        config_state
 )

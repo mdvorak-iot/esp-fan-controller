@@ -1,7 +1,27 @@
-#menu "Application config"
-#    config APP_CONFIG_TODO
-#        int "TODO"
-#        default 0
-#        help
-#            TODO
-#endmenu
+menu "Application config"
+    config APP_DEVICE_NAME
+        string "RainMaker device name"
+        default "Fan Controller"
+
+    config APP_DEVICE_TYPE
+        string "RainMaker device type"
+        default "esp.device.fan"
+endmenu
+
+menu "Hardware config"
+    config HW_PWM_PIN
+        int "Fan speed control PIN (PWM)"
+        default 2
+
+    config HW_PWM_INVERTED
+        bool "Inverted PWM control"
+        default 1
+
+    config HW_RPM_PIN
+        int "Fan RPM reporting PIN"
+        default 32
+
+    config HW_DS18B20_PIN
+        int "Sensors data PIN"
+        default 15
+endmenu

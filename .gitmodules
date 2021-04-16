@@ -1,0 +1,25 @@
+[submodule "rainmaker_init"]
+	path = components/rainmaker_init
+	url = https://github.com/mdvorak-iot/esp-rainmaker-init.git
+[submodule "app_wifi"]
+	path = components/app_wifi
+	url = https://github.com/mdvorak-iot/esp-app-wifi.git
+[submodule "double_reset"]
+	path = components/double_reset
+	url = https://github.com/mdvorak-iot/esp-double-reset.git
+	branch = main
+[submodule "status_led"]
+	path = components/status_led
+	url = https://github.com/mdvorak-iot/esp-status-led.git
+[submodule "wifi_reconnect"]
+	path = components/wifi_reconnect
+	url = https://github.com/mdvorak-iot/esp-wifi-reconnect.git
+[submodule "esp32-owb"]
+	path = components/esp32-owb
+	url = https://github.com/DavidAntliff/esp32-owb.git
+[submodule "esp32-ds18b20"]
+	path = components/esp32-ds18b20
+	url = https://github.com/DavidAntliff/esp32-ds18b20.git
+[submodule "rainmaker"]
+	path = rainmaker
+	url = https://github.com/espressif/esp-rainmaker.git
