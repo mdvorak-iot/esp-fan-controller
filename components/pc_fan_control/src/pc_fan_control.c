@@ -1,14 +1,14 @@
-#include "fan_control.h"
+#include "pc_fan_control.h"
 #include <driver/ledc.h>
 #include <esp_log.h>
 
-static const char TAG[] = "fan_control";
+static const char TAG[] = "pc_fan_control";
 
 static const uint32_t FAN_CONTROL_FREQ_HZ = 25000;
 static const ledc_timer_bit_t FAN_CONTROL_RESOLUTION = LEDC_TIMER_10_BIT;
 static const float FAN_CONTROL_MAX_DUTY = (float)((1u << FAN_CONTROL_RESOLUTION) - 1);
 
-esp_err_t fan_control_config(gpio_num_t pin, ledc_timer_t timer, ledc_channel_t channel)
+esp_err_t pc_fan_control_config(gpio_num_t pin, ledc_timer_t timer, ledc_channel_t channel)
 {
     if (pin < 0 || !GPIO_IS_VALID_OUTPUT_GPIO(pin))
     {
@@ -39,7 +39,7 @@ esp_err_t fan_control_config(gpio_num_t pin, ledc_timer_t timer, ledc_channel_t 
     return ledc_channel_config(&channelConfig);
 }
 
-esp_err_t fan_control_set_duty(ledc_channel_t channel, float duty_percent)
+esp_err_t pc_fan_control_set_duty(ledc_channel_t channel, float duty_percent)
 {
     if (duty_percent < 0.0f || duty_percent > 1.0f)
     {
