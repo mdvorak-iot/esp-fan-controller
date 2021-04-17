@@ -34,21 +34,21 @@
 static const char TAG[] = "app_main";
 
 // Params
-#define APP_RMAKER_DEF_MAX_POWER_NAME "Max Power"
+#define APP_RMAKER_DEF_MAX_SPEED_NAME "Max Speed"
+#define APP_RMAKER_DEF_LOW_SPEED_NAME "Low Speed"
+#define APP_RMAKER_DEF_HIGH_SPEED_NAME "High Speed"
+#define APP_RMAKER_DEF_LOW_TEMP_NAME "Low Temperature"
+#define APP_RMAKER_DEF_HIGH_TEMP_NAME "High Temperature"
+#define APP_RMAKER_DEF_PRIMARY_SENSOR_NAME "Primary Sensor"
+#define APP_RMAKER_DEF_SENSOR_NAME_NAME_F "Sensor %llx Name"
+#define APP_RMAKER_DEF_SENSOR_OFFSET_NAME_F "Sensor %llx Offset °C"
 
-esp_rmaker_param_t *max_power_param = NULL;
-
-
-/*
-     uint64_t primary_sensor_address;
-    app_config_sensor sensors[APP_CONFIG_MAX_SENSORS];
-    uint8_t low_threshold_celsius;
-    uint8_t high_threshold_celsius;
-    uint8_t cpu_threshold_celsius;
-    uint16_t cpu_poll_interval_seconds;
-    uint8_t low_threshold_duty_percent;
-    uint8_t high_threshold_duty_percent;
- */
+esp_rmaker_param_t *max_speed_param = NULL;
+esp_rmaker_param_t *low_speed_param = NULL;
+esp_rmaker_param_t *high_speed_param = NULL;
+esp_rmaker_param_t *low_temperature_param = NULL;
+esp_rmaker_param_t *high_temperature_param = NULL;
+esp_rmaker_param_t *primary_sensor_param = NULL;
 
 // State
 static owb_rmt_driver_info owb_driver = {};
@@ -256,7 +256,7 @@ static esp_err_t device_write_cb(__unused const esp_rmaker_device_t *device, con
                                  __unused esp_rmaker_write_ctx_t *ctx)
 {
     char *param_name = esp_rmaker_param_get_name(param);
-    if (strcmp(param_name, APP_RMAKER_DEF_MAX_POWER_NAME) == 0)
+    if (strcmp(param_name, APP_RMAKER_DEF_MAX_SPEED_NAME) == 0)
     {
         force_max_duty = val.val.b;
         esp_rmaker_param_update_and_report(param, val);
@@ -275,7 +275,7 @@ static void app_devices_init(esp_rmaker_node_t *node)
     ESP_ERROR_CHECK(esp_rmaker_node_add_device(node, device));
 
     // Register buttons, sensors, etc
-    max_power_param = esp_rmaker_param_create(APP_RMAKER_DEF_MAX_POWER_NAME, ESP_RMAKER_PARAM_POWER, esp_rmaker_bool(false), PROP_FLAG_READ | PROP_FLAG_WRITE);
-    ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(max_power_param, ESP_RMAKER_UI_TOGGLE));
-    ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, max_power_param));
+    max_speed_param = esp_rmaker_param_create(APP_RMAKER_DEF_MAX_SPEED_NAME, ESP_RMAKER_PARAM_SPEED, esp_rmaker_bool(false), PROP_FLAG_READ | PROP_FLAG_WRITE);
+    ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(max_speed_param, ESP_RMAKER_UI_TOGGLE));
+    ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, max_speed_param));
 }
