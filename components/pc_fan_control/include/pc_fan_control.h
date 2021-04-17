@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-esp_err_t pc_fan_control_config(gpio_num_t pin, ledc_timer_t timer, ledc_channel_t channel);
+esp_err_t pc_fan_control_init(gpio_num_t pin, ledc_timer_t timer, ledc_channel_t channel);
 
 /**
  * Sets the duty according to percentual value.

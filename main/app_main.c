@@ -38,7 +38,7 @@ static void app_devices_init(esp_rmaker_node_t *node);
 static esp_err_t set_fan_duty(float duty_percent)
 {
     // Invert
-    esp_err_t err = pc_fan_control_set_duty(HW_PWM_CHANNEL, HW_PWM_INVERTED ? 1 - duty_percent : duty_percent);
+    esp_err_t err = pc_fan_control_set_duty(HW_PWM_CHANNEL, HW_PWM_INVERTED ? 1.0f - duty_percent : duty_percent);
     if (err == ESP_OK)
     {
         fan_duty_percent = duty_percent;
@@ -78,7 +78,7 @@ void setup()
     ESP_ERROR_CHECK(wifi_reconnect_start());
 
     // Fans
-    ESP_ERROR_CHECK_WITHOUT_ABORT(pc_fan_control_config(HW_PWM_PIN, HW_PWM_TIMER, HW_PWM_CHANNEL));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(pc_fan_control_init(HW_PWM_PIN, HW_PWM_TIMER, HW_PWM_CHANNEL));
     ESP_ERROR_CHECK_WITHOUT_ABORT(set_fan_duty(0.9));
 
     // Initialize OneWireBus
