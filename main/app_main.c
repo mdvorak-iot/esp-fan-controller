@@ -11,6 +11,7 @@
 #include <esp_wifi.h>
 #include <nvs_flash.h>
 #include <pc_fan_control.h>
+#include <pc_fan_rpm.h>
 #include <string.h>
 #include <wifi_reconnect.h>
 
@@ -30,7 +31,8 @@ static const char TAG[] = "app_main";
 // State
 static owb_rmt_driver_info owb_driver = {};
 static ds18b20_group_handle_t sensors = NULL;
-static volatile float fan_duty_percent = 0;
+static float fan_duty_percent = 0;
+static pc_fan_rpm_sampling_ptr rpm;
 
 // Program
 static void app_devices_init(esp_rmaker_node_t *node);
@@ -80,6 +82,14 @@ void setup()
     // Fans
     ESP_ERROR_CHECK_WITHOUT_ABORT(pc_fan_control_init(HW_PWM_PIN, HW_PWM_TIMER, HW_PWM_CHANNEL));
     ESP_ERROR_CHECK_WITHOUT_ABORT(set_fan_duty(0.9));
+
+    struct pc_fan_rpm_config rpm_cfg = {
+        .pin = (gpio_num_t)HW_RPM_PIN,
+        .unit = (pcnt_unit_t)HW_RPM_UNIT,
+    };
+    pc_fan_rpm_handle_ptr rpm_handle = NULL;
+    ESP_ERROR_CHECK(pc_fan_rpm_init(&rpm_cfg, &rpm_handle));
+    ESP_ERROR_CHECK(pc_fan_rpm_sampling_init(HW_RPM_SAMPLES, rpm_handle, &rpm_sampling));
 
     // Initialize OneWireBus
     owb_rmt_initialize(&owb_driver, HW_DS18B20_PIN, SENSORS_RMT_CHANNEL_TX, SENSORS_RMT_CHANNEL_RX);

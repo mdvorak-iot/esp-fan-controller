@@ -23,3 +23,6 @@
 [submodule "rainmaker"]
 	path = rainmaker
 	url = https://github.com/espressif/esp-rainmaker.git
+[submodule "pc_fan"]
+	path = components/pc_fan
+	url = https://github.com/mdvorak-iot/esp-pc-fan.git
