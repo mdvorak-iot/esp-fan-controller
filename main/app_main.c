@@ -208,75 +208,6 @@ void app_hw_init()
     }
 }
 
-static void loop()
-{
-    // Read temperatures
-    if (sensors && sensors->count > 0)
-    {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_convert(sensors));
-        ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_wait_for_conversion(sensors));
-
-        for (size_t i = 0; i < sensors->count; i++)
-        {
-            float temp_c = -127;
-            if (ds18b20_group_read_single(sensors, i, &temp_c) == ESP_OK && temp_c > -80)
-            {
-                temp_c += sensors_config[i].offset_c;
-
-                ESP_LOGI(TAG, "read temperature %s: %.3f C", sensors_config[i].address, temp_c);
-                temperatures[i] = temp_c;
-            }
-            else
-            {
-                ESP_LOGW(TAG, "failed to read from %s", sensors_config[i].address);
-            }
-        }
-
-        // Find primary temperature
-        float primary_temp_c = temperatures[primary_sensor_index < sensors->count ? primary_sensor_index : 0];
-        ESP_LOGI(TAG, "primary temperature: %.3f C", primary_temp_c);
-
-        // Limit to range
-        float temp_in_range = primary_temp_c < low_temperature_threshold ? low_temperature_threshold : (primary_temp_c > high_temperature_threshold ? high_temperature_threshold : primary_temp_c);
-        // Map temperature range to duty cycle
-        float duty_percent = (temp_in_range - low_temperature_threshold) * (high_duty_percent - low_duty_percent) / (high_temperature_threshold - low_temperature_threshold) + low_duty_percent;
-
-        // Control fan
-        set_fan_duty(force_max_duty ? high_duty_percent : duty_percent);
-    }
-    else
-    {
-        // Fallback mode
-        set_fan_duty(high_duty_percent);
-    }
-
-    ESP_LOGI(TAG, "rpm: %d", pc_fan_rpm_last_value(rpm));
-}
-
-_Noreturn void app_main()
-{
-    setup();
-
-    // Run
-    TickType_t start = xTaskGetTickCount();
-    uint8_t blink_counter = 0;
-
-    for (;;)
-    {
-        // Blink every n seconds (approx)
-        if ((++blink_counter % 8) == 0 && !status_led_is_active(STATUS_LED_DEFAULT))
-        {
-            status_led_set_interval_for(STATUS_LED_DEFAULT, 0, true, 20, false);
-        }
-
-        // Throttle
-        vTaskDelayUntil(&start, APP_CONTROL_LOOP_INTERVAL / portTICK_PERIOD_MS);
-
-        // Run control loop
-        loop();
-    }
-}
-
 static esp_err_t device_write_cb(__unused const esp_rmaker_device_t *device, const esp_rmaker_param_t *param,
                                  const esp_rmaker_param_val_t val, __unused void *private_data,
                                  __unused esp_rmaker_write_ctx_t *ctx)
@@ -412,5 +343,74 @@ static void app_devices_init(esp_rmaker_node_t *node)
             ESP_ERROR_CHECK(esp_rmaker_param_add_bounds(sensor_offset_param, esp_rmaker_float(-1.0f), esp_rmaker_float(1.0f), esp_rmaker_float(0.05f)));
             ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, sensor_offset_param));
         }
+    }
+}
+
+static void loop()
+{
+    // Read temperatures
+    if (sensors && sensors->count > 0)
+    {
+        ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_convert(sensors));
+        ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_wait_for_conversion(sensors));
+
+        for (size_t i = 0; i < sensors->count; i++)
+        {
+            float temp_c = -127;
+            if (ds18b20_group_read_single(sensors, i, &temp_c) == ESP_OK && temp_c > -80)
+            {
+                temp_c += sensors_config[i].offset_c;
+
+                ESP_LOGI(TAG, "read temperature %s: %.3f C", sensors_config[i].address, temp_c);
+                temperatures[i] = temp_c;
+            }
+            else
+            {
+                ESP_LOGW(TAG, "failed to read from %s", sensors_config[i].address);
+            }
+        }
+
+        // Find primary temperature
+        float primary_temp_c = temperatures[primary_sensor_index < sensors->count ? primary_sensor_index : 0];
+        ESP_LOGI(TAG, "primary temperature: %.3f C", primary_temp_c);
+
+        // Limit to range
+        float temp_in_range = primary_temp_c < low_temperature_threshold ? low_temperature_threshold : (primary_temp_c > high_temperature_threshold ? high_temperature_threshold : primary_temp_c);
+        // Map temperature range to duty cycle
+        float duty_percent = (temp_in_range - low_temperature_threshold) * (high_duty_percent - low_duty_percent) / (high_temperature_threshold - low_temperature_threshold) + low_duty_percent;
+
+        // Control fan
+        set_fan_duty(force_max_duty ? high_duty_percent : duty_percent);
+    }
+    else
+    {
+        // Fallback mode
+        set_fan_duty(high_duty_percent);
+    }
+
+    ESP_LOGI(TAG, "rpm: %d", pc_fan_rpm_last_value(rpm));
+}
+
+_Noreturn void app_main()
+{
+    setup();
+
+    // Run
+    TickType_t start = xTaskGetTickCount();
+    uint8_t blink_counter = 0;
+
+    for (;;)
+    {
+        // Blink every n seconds (approx)
+        if ((++blink_counter % 8) == 0 && !status_led_is_active(STATUS_LED_DEFAULT))
+        {
+            status_led_set_interval_for(STATUS_LED_DEFAULT, 0, true, 20, false);
+        }
+
+        // Throttle
+        vTaskDelayUntil(&start, APP_CONTROL_LOOP_INTERVAL / portTICK_PERIOD_MS);
+
+        // Run control loop
+        loop();
     }
 }
