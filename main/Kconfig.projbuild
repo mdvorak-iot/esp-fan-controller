@@ -21,6 +21,16 @@ menu "Hardware config"
         int "Fan RPM reporting PIN"
         default 32
 
+    config HW_RPM_SAMPLES
+        int "Fan RPM samples count"
+        default 5
+        help
+            How many samples are used to smooth the RPM value.
+
+    config HW_RPM_SAMPLING_INTERVAL
+        int "Fan RPM sampling interval in ms"
+        default 200
+
     config HW_DS18B20_PIN
         int "Sensors data PIN"
         default 15
