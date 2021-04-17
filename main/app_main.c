@@ -370,7 +370,7 @@ static void app_devices_init(esp_rmaker_node_t *node)
     ESP_ERROR_CHECK(esp_rmaker_param_add_bounds(low_temperature_param, esp_rmaker_float(0), esp_rmaker_float(50), esp_rmaker_float(0.5f)));
     ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, low_temperature_param));
 
-    high_temperature_param = esp_rmaker_param_create(APP_RMAKER_DEF_LOW_TEMP_NAME, ESP_RMAKER_PARAM_TEMPERATURE, esp_rmaker_float(high_temperature_threshold), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
+    high_temperature_param = esp_rmaker_param_create(APP_RMAKER_DEF_HIGH_TEMP_NAME, ESP_RMAKER_PARAM_TEMPERATURE, esp_rmaker_float(high_temperature_threshold), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
     ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(high_temperature_param, ESP_RMAKER_UI_SLIDER));
     ESP_ERROR_CHECK(esp_rmaker_param_add_bounds(high_temperature_param, esp_rmaker_float(0), esp_rmaker_float(50), esp_rmaker_float(0.5f)));
     ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, high_temperature_param));
