@@ -18,5 +18,5 @@ idf_component_register(
         app_wifi
         rainmaker_init
         ds18b20_group
-        pc_fan_control
+        pc_fan
 )
