@@ -307,22 +307,22 @@ static void app_devices_init(esp_rmaker_node_t *node)
     ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, max_speed_param));
 
     low_speed_param = esp_rmaker_param_create(APP_RMAKER_DEF_LOW_SPEED_NAME, ESP_RMAKER_PARAM_SPEED, esp_rmaker_int((int)(low_duty_percent * 100.0f)), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
-    ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(low_speed_param, ESP_RMAKER_UI_SLIDER));
+    ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(low_speed_param, ESP_RMAKER_UI_TEXT));
     ESP_ERROR_CHECK(esp_rmaker_param_add_bounds(low_speed_param, esp_rmaker_int(0), esp_rmaker_int(100), esp_rmaker_int(1)));
     ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, low_speed_param));
 
     high_speed_param = esp_rmaker_param_create(APP_RMAKER_DEF_HIGH_SPEED_NAME, ESP_RMAKER_PARAM_SPEED, esp_rmaker_int((int)(high_duty_percent * 100.0f)), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
-    ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(high_speed_param, ESP_RMAKER_UI_SLIDER));
+    ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(high_speed_param, ESP_RMAKER_UI_TEXT));
     ESP_ERROR_CHECK(esp_rmaker_param_add_bounds(high_speed_param, esp_rmaker_int(0), esp_rmaker_int(100), esp_rmaker_int(1)));
     ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, high_speed_param));
 
     low_temperature_param = esp_rmaker_param_create(APP_RMAKER_DEF_LOW_TEMP_NAME, ESP_RMAKER_PARAM_TEMPERATURE, esp_rmaker_float(low_temperature_threshold), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
-    ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(low_temperature_param, ESP_RMAKER_UI_SLIDER));
+    ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(low_temperature_param, ESP_RMAKER_UI_TEXT));
     ESP_ERROR_CHECK(esp_rmaker_param_add_bounds(low_temperature_param, esp_rmaker_float(0), esp_rmaker_float(50), esp_rmaker_float(0.5f)));
     ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, low_temperature_param));
 
     high_temperature_param = esp_rmaker_param_create(APP_RMAKER_DEF_HIGH_TEMP_NAME, ESP_RMAKER_PARAM_TEMPERATURE, esp_rmaker_float(high_temperature_threshold), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
-    ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(high_temperature_param, ESP_RMAKER_UI_SLIDER));
+    ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(high_temperature_param, ESP_RMAKER_UI_TEXT));
     ESP_ERROR_CHECK(esp_rmaker_param_add_bounds(high_temperature_param, esp_rmaker_float(0), esp_rmaker_float(50), esp_rmaker_float(0.5f)));
     ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, high_temperature_param));
 
@@ -354,7 +354,7 @@ static void app_devices_init(esp_rmaker_node_t *node)
             ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, sensor_name_param));
 
             esp_rmaker_param_t *sensor_offset_param = esp_rmaker_param_create(sensors_config[i].offset_param_name, ESP_RMAKER_PARAM_TEMPERATURE, esp_rmaker_float(0.0f), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
-            ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(sensor_offset_param, ESP_RMAKER_UI_SLIDER));
+            ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(sensor_offset_param, ESP_RMAKER_UI_TEXT));
             ESP_ERROR_CHECK(esp_rmaker_param_add_bounds(sensor_offset_param, esp_rmaker_float(-1.0f), esp_rmaker_float(1.0f), esp_rmaker_float(0.05f)));
             ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, sensor_offset_param));
         }
