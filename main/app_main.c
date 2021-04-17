@@ -225,13 +225,23 @@ static esp_err_t device_write_cb(__unused const esp_rmaker_device_t *device, con
     }
     if (strcmp(name, APP_RMAKER_DEF_LOW_SPEED_NAME) == 0)
     {
-        low_duty_percent = (float)val.val.i / 100.0f;
-        return esp_rmaker_param_update_and_report(param, val);
+        float value = (float)val.val.i / 100.0f;
+        if (value >= 0 && value <= 1)
+        {
+            low_duty_percent = value;
+            return esp_rmaker_param_update_and_report(param, val);
+        }
+        return ESP_ERR_INVALID_ARG;
     }
     if (strcmp(name, APP_RMAKER_DEF_HIGH_SPEED_NAME) == 0)
     {
-        high_duty_percent = (float)val.val.i / 100.0f;
-        return esp_rmaker_param_update_and_report(param, val);
+        float value = (float)val.val.i / 100.0f;
+        if (value >= 0 && value <= 1)
+        {
+            high_duty_percent = value;
+            return esp_rmaker_param_update_and_report(param, val);
+        }
+        return ESP_ERR_INVALID_ARG;
     }
     if (strcmp(name, APP_RMAKER_DEF_LOW_TEMP_NAME) == 0)
     {
