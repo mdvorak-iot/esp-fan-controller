@@ -41,8 +41,8 @@ static const char TAG[] = "app_main";
 #define APP_RMAKER_DEF_LOW_TEMP_NAME "Low Temperature"
 #define APP_RMAKER_DEF_HIGH_TEMP_NAME "High Temperature"
 #define APP_RMAKER_DEF_PRIMARY_SENSOR_NAME "Primary Sensor"
-#define APP_RMAKER_DEF_SENSOR_NAME_NAME_F "Sensor %llx Name"
-#define APP_RMAKER_DEF_SENSOR_OFFSET_NAME_F "Sensor %llx Offset °C"
+#define APP_RMAKER_DEF_SENSOR_NAME_NAME_F "Sensor %s Name"
+#define APP_RMAKER_DEF_SENSOR_OFFSET_NAME_F "Sensor %s Offset °C"
 
 esp_rmaker_param_t *max_speed_param = NULL;
 esp_rmaker_param_t *low_speed_param = NULL;
@@ -62,6 +62,9 @@ static struct
     char address[17];
     char name[33];
     float offset_c;
+
+    char name_param_name[sizeof(APP_RMAKER_DEF_SENSOR_NAME_NAME_F) + 16];
+    char offset_param_name[sizeof(APP_RMAKER_DEF_SENSOR_OFFSET_NAME_F) + 16];
 } sensors_config[DS18B20_GROUP_MAX_SIZE] = {};
 static float temperatures[DS18B20_GROUP_MAX_SIZE] = {};
 
@@ -182,15 +185,23 @@ void app_hw_init()
 
     // Temperature sensors
     ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_create(&owb_driver.bus, &sensors));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_find(sensors));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_use_crc(sensors, true));
-    ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_set_resolution(sensors, DS18B20_RESOLUTION_12_BIT));
-
-    for (size_t i = 0; i < sensors->count; i++)
+    if (sensors)
     {
-        // Print address as string so we don't have to do that every time
-        snprintf(sensors_config[i].address, sizeof(sensors_config[i].address), "%llx", *(uint64_t *)sensors->devices[i].rom_code.bytes);
-        strcpy(sensors_config[i].name, sensors_config[i].address); // Default name is address
+        ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_find(sensors));
+        ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_use_crc(sensors, true));
+        ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_set_resolution(sensors, DS18B20_RESOLUTION_12_BIT));
+
+        for (size_t i = 0; i < sensors->count; i++)
+        {
+            // Print address as string so we don't have to do that every time
+            snprintf(sensors_config[i].address, sizeof(sensors_config[i].address), "%llx", *(uint64_t *)sensors->devices[i].rom_code.bytes);
+            const char *address_str = sensors_config[i].address;
+
+            strcpy(sensors_config[i].name, address_str); // Default name is address
+
+            snprintf(sensors_config[i].name_param_name, sizeof(sensors_config[i].name_param_name), APP_RMAKER_DEF_SENSOR_NAME_NAME_F, address_str);
+            snprintf(sensors_config[i].offset_param_name, sizeof(sensors_config[i].offset_param_name), APP_RMAKER_DEF_SENSOR_OFFSET_NAME_F, address_str);
+        }
     }
 }
 
@@ -228,7 +239,7 @@ static void loop()
         float duty_percent = (temp_in_range - low_temperature_threshold) * (high_duty_percent - low_duty_percent) / (high_temperature_threshold - low_temperature_threshold) + low_duty_percent;
 
         // Control fan
-        set_fan_duty(duty_percent);
+        set_fan_duty(force_max_duty ? high_duty_percent : duty_percent);
     }
     else
     {
@@ -291,6 +302,41 @@ static esp_err_t device_write_cb(__unused const esp_rmaker_device_t *device, con
         high_temperature_threshold = val.val.f;
         return esp_rmaker_param_update_and_report(param, val);
     }
+    if (strcmp(name, APP_RMAKER_DEF_PRIMARY_SENSOR_NAME) == 0)
+    {
+        // Find primary sensor
+        if (sensors && sensors->count > 0)
+        {
+            for (size_t i = 0; i < sensors->count; i++)
+            {
+                if (strcmp(sensors_config[i].address, val.val.s) == 0)
+                {
+                    // Found
+                    primary_sensor_index = i;
+                    return esp_rmaker_param_update_and_report(param, val);
+                }
+            }
+        }
+        // Not found or no sensors connected, ignore
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (sensors)
+    {
+        for (size_t i = 0; i < sensors->count; i++)
+        {
+            if (strcmp(name, sensors_config[i].name_param_name) == 0)
+            {
+                strlcpy(sensors_config[i].name, val.val.s, sizeof(sensors_config[i].name));
+                return esp_rmaker_param_update_and_report(param, esp_rmaker_str(sensors_config[i].name));
+            }
+            if (strcmp(name, sensors_config[i].offset_param_name) == 0)
+            {
+                sensors_config[i].offset_c = val.val.f;
+                return esp_rmaker_param_update_and_report(param, val);
+            }
+        }
+    }
     return ESP_OK;
 }
 
@@ -328,4 +374,34 @@ static void app_devices_init(esp_rmaker_node_t *node)
     ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(high_temperature_param, ESP_RMAKER_UI_SLIDER));
     ESP_ERROR_CHECK(esp_rmaker_param_add_bounds(high_temperature_param, esp_rmaker_float(0), esp_rmaker_float(50), esp_rmaker_float(0.5f)));
     ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, high_temperature_param));
+
+    size_t sensor_count = sensors ? sensors->count : 0;
+    if (sensor_count > 0)
+    {
+        // NOTE this is never deallocated, since RainMaker is using it during its lifetime and it never changes anyway
+        const char **sensor_addresses = calloc(sensor_count, sizeof(const char *));
+        // Reference config values
+        for (size_t i = 0; i < sensor_count; i++)
+        {
+            sensor_addresses[i] = sensors_config[i].address;
+        }
+
+        primary_sensor_param = esp_rmaker_param_create(APP_RMAKER_DEF_PRIMARY_SENSOR_NAME, NULL, esp_rmaker_str(sensor_addresses[0]), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
+        ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(primary_sensor_param, ESP_RMAKER_UI_DROPDOWN));
+        ESP_ERROR_CHECK(esp_rmaker_param_add_valid_str_list(primary_sensor_param, sensor_addresses, sensor_count));
+        ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, primary_sensor_param));
+
+        // Sensors config
+        for (size_t i = 0; i < sensor_count; i++)
+        {
+            esp_rmaker_param_t *sensor_name_param = esp_rmaker_param_create(sensors_config[i].name_param_name, ESP_RMAKER_PARAM_NAME, esp_rmaker_str(sensors_config[i].name), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
+            ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(sensor_name_param, ESP_RMAKER_UI_TEXT));
+            ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, sensor_name_param));
+
+            esp_rmaker_param_t *sensor_offset_param = esp_rmaker_param_create(sensors_config[i].offset_param_name, ESP_RMAKER_PARAM_TEMPERATURE, esp_rmaker_float(0.0f), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
+            ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(sensor_offset_param, ESP_RMAKER_UI_SLIDER));
+            ESP_ERROR_CHECK(esp_rmaker_param_add_bounds(sensor_offset_param, esp_rmaker_float(-1.0f), esp_rmaker_float(1.0f), esp_rmaker_float(0.05f)));
+            ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, sensor_offset_param));
+        }
+    }
 }
