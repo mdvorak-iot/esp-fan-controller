@@ -19,6 +19,7 @@
 
 #define APP_DEVICE_NAME CONFIG_APP_DEVICE_NAME
 #define APP_DEVICE_TYPE CONFIG_APP_DEVICE_TYPE
+#define APP_CONTROL_LOOP_INTERVAL CONFIG_APP_CONTROL_LOOP_INTERVAL
 #define HW_PWM_PIN CONFIG_HW_PWM_PIN
 #define HW_PWM_INVERTED CONFIG_HW_PWM_INVERTED
 #define HW_PWM_TIMER LEDC_TIMER_0
@@ -193,6 +194,49 @@ void app_hw_init()
     }
 }
 
+static void loop()
+{
+    // Read temperatures
+    if (sensors && sensors->count > 0)
+    {
+        ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_convert(sensors));
+        ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_wait_for_conversion(sensors));
+
+        for (size_t i = 0; i < sensors->count; i++)
+        {
+            float temp_c = -127;
+            if (ds18b20_group_read_single(sensors, i, &temp_c) == ESP_OK && temp_c > -80)
+            {
+                temp_c += sensors_config[i].offset_c;
+
+                ESP_LOGI(TAG, "read temperature %s: %.3f C", sensors_config[i].address, temp_c);
+                temperatures[i] = temp_c;
+            }
+            else
+            {
+                ESP_LOGW(TAG, "failed to read from %s", sensors_config[i].address);
+            }
+        }
+
+        // Find primary temperature
+        float primary_temp_c = temperatures[primary_sensor_index < sensors->count ? primary_sensor_index : 0];
+        ESP_LOGI(TAG, "primary temperature: %.3f C", primary_temp_c);
+
+        // Limit to range
+        float temp_in_range = primary_temp_c < low_temperature_threshold ? low_temperature_threshold : (primary_temp_c > high_temperature_threshold ? high_temperature_threshold : primary_temp_c);
+        // Map temperature range to duty cycle
+        float duty_percent = (temp_in_range - low_temperature_threshold) * (high_duty_percent - low_duty_percent) / (high_temperature_threshold - low_temperature_threshold) + low_duty_percent;
+
+        // Control fan
+        set_fan_duty(duty_percent);
+    }
+    else
+    {
+        // Fallback mode
+        set_fan_duty(high_duty_percent);
+    }
+}
+
 _Noreturn void app_main()
 {
     setup();
@@ -210,47 +254,10 @@ _Noreturn void app_main()
         }
 
         // Throttle
-        vTaskDelayUntil(&start, 1000 / portTICK_PERIOD_MS);
+        vTaskDelayUntil(&start, APP_CONTROL_LOOP_INTERVAL / portTICK_PERIOD_MS);
 
-        // Read temperatures
-        if (sensors && sensors->count > 0)
-        {
-            ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_convert(sensors));
-            ESP_ERROR_CHECK_WITHOUT_ABORT(ds18b20_group_wait_for_conversion(sensors));
-
-            for (size_t i = 0; i < sensors->count; i++)
-            {
-                float temp_c = -127;
-                if (ds18b20_group_read_single(sensors, i, &temp_c) == ESP_OK && temp_c > -80)
-                {
-                    temp_c += sensors_config[i].offset_c;
-
-                    ESP_LOGI(TAG, "read temperature %s: %.3f C", sensors_config[i].address, temp_c);
-                    temperatures[i] = temp_c;
-                }
-                else
-                {
-                    ESP_LOGW(TAG, "failed to read from %s", sensors_config[i].address);
-                }
-            }
-
-            // Find primary temperature
-            float primary_temp_c = temperatures[primary_sensor_index < sensors->count ? primary_sensor_index : 0];
-            ESP_LOGI(TAG, "primary temperature: %.3f C", primary_temp_c);
-
-            // Limit to range
-            float temp_in_range = primary_temp_c < low_temperature_threshold ? low_temperature_threshold : (primary_temp_c > high_temperature_threshold ? high_temperature_threshold : primary_temp_c);
-            // Map temperature range to duty cycle
-            float duty_percent = (temp_in_range - low_temperature_threshold) * (high_duty_percent - low_duty_percent) / (high_temperature_threshold - low_temperature_threshold) + low_duty_percent;
-
-            // Control fan
-            set_fan_duty(duty_percent);
-        }
-        else
-        {
-            // Fallback mode
-            set_fan_duty(high_duty_percent);
-        }
+        // Run control loop
+        loop();
     }
 }
 
@@ -258,20 +265,30 @@ static esp_err_t device_write_cb(__unused const esp_rmaker_device_t *device, con
                                  const esp_rmaker_param_val_t val, __unused void *private_data,
                                  __unused esp_rmaker_write_ctx_t *ctx)
 {
-    char *param_name = esp_rmaker_param_get_name(param);
-    if (strcmp(param_name, APP_RMAKER_DEF_MAX_SPEED_NAME) == 0)
+    char *name = esp_rmaker_param_get_name(param);
+    if (strcmp(name, APP_RMAKER_DEF_MAX_SPEED_NAME) == 0)
     {
         force_max_duty = val.val.b;
         return esp_rmaker_param_update_and_report(param, val);
     }
-    if (strcmp(param_name, APP_RMAKER_DEF_LOW_SPEED_NAME) == 0)
+    if (strcmp(name, APP_RMAKER_DEF_LOW_SPEED_NAME) == 0)
     {
         low_duty_percent = (float)val.val.i / 100.0f;
         return esp_rmaker_param_update_and_report(param, val);
     }
-    if (strcmp(param_name, APP_RMAKER_DEF_HIGH_SPEED_NAME) == 0)
+    if (strcmp(name, APP_RMAKER_DEF_HIGH_SPEED_NAME) == 0)
     {
         high_duty_percent = (float)val.val.i / 100.0f;
+        return esp_rmaker_param_update_and_report(param, val);
+    }
+    if (strcmp(name, APP_RMAKER_DEF_LOW_TEMP_NAME) == 0)
+    {
+        low_temperature_threshold = val.val.f;
+        return esp_rmaker_param_update_and_report(param, val);
+    }
+    if (strcmp(name, APP_RMAKER_DEF_HIGH_TEMP_NAME) == 0)
+    {
+        high_temperature_threshold = val.val.f;
         return esp_rmaker_param_update_and_report(param, val);
     }
     return ESP_OK;
@@ -301,4 +318,14 @@ static void app_devices_init(esp_rmaker_node_t *node)
     ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(high_speed_param, ESP_RMAKER_UI_SLIDER));
     ESP_ERROR_CHECK(esp_rmaker_param_add_bounds(high_speed_param, esp_rmaker_int(0), esp_rmaker_int(100), esp_rmaker_int(1)));
     ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, high_speed_param));
+
+    low_temperature_param = esp_rmaker_param_create(APP_RMAKER_DEF_LOW_TEMP_NAME, ESP_RMAKER_PARAM_TEMPERATURE, esp_rmaker_float(low_temperature_threshold), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
+    ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(low_temperature_param, ESP_RMAKER_UI_SLIDER));
+    ESP_ERROR_CHECK(esp_rmaker_param_add_bounds(low_temperature_param, esp_rmaker_float(0), esp_rmaker_float(50), esp_rmaker_float(0.5f)));
+    ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, low_temperature_param));
+
+    high_temperature_param = esp_rmaker_param_create(APP_RMAKER_DEF_LOW_TEMP_NAME, ESP_RMAKER_PARAM_TEMPERATURE, esp_rmaker_float(high_temperature_threshold), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
+    ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(high_temperature_param, ESP_RMAKER_UI_SLIDER));
+    ESP_ERROR_CHECK(esp_rmaker_param_add_bounds(high_temperature_param, esp_rmaker_float(0), esp_rmaker_float(50), esp_rmaker_float(0.5f)));
+    ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, high_temperature_param));
 }
