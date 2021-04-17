@@ -1,10 +1,11 @@
 #include "app_status.h"
-#include "web_server.h"
+#include "util/util_append.h"
 #include <app_rainmaker.h>
 #include <app_wifi.h>
 #include <double_reset.h>
 #include <driver/ledc.h>
 #include <ds18b20_group.h>
+#include <esp_http_server.h>
 #include <esp_log.h>
 #include <esp_rmaker_core.h>
 #include <esp_rmaker_standard_params.h>
@@ -53,6 +54,7 @@ esp_rmaker_param_t *high_temperature_param = NULL;
 esp_rmaker_param_t *primary_sensor_param = NULL;
 
 // State
+static httpd_handle_t httpd = NULL;
 static owb_rmt_driver_info owb_driver = {};
 static ds18b20_group_handle_t sensors = NULL;
 static pc_fan_rpm_sampling_ptr rpm = NULL;
@@ -69,6 +71,7 @@ static struct
     char offset_param_name[20]; // NOTE must actually fit into 15 char nvs key limit
 } sensors_config[DS18B20_GROUP_MAX_SIZE] = {};
 static float temperatures[DS18B20_GROUP_MAX_SIZE] = {};
+static size_t sensor_errors = 0;
 
 // Config
 static bool force_max_duty = false;
@@ -81,6 +84,7 @@ static size_t primary_sensor_index = 0;
 // Program
 static void app_devices_init(esp_rmaker_node_t *node);
 static void app_hw_init();
+static esp_err_t metrics_http_handler(httpd_req_t *r);
 
 static void set_fan_duty(float duty_percent)
 {
@@ -150,9 +154,10 @@ void setup()
     app_devices_init(node);
 
     // HTTP Server
-    ESP_ERROR_CHECK_WITHOUT_ABORT(web_server_start());
-    // TODO
-    //    ESP_ERROR_CHECK_WITHOUT_ABORT(web_server_register_handler("/metrics", HTTP_GET, metrics_http_handler, NULL));
+    httpd_config_t httpd_config = HTTPD_DEFAULT_CONFIG();
+    ESP_ERROR_CHECK_WITHOUT_ABORT(httpd_start(&httpd, &httpd_config));
+    httpd_uri_t metrics_handler_uri = {.uri = "/metrics", .method = HTTP_GET, .handler = metrics_http_handler};
+    ESP_ERROR_CHECK_WITHOUT_ABORT(httpd_register_uri_handler(httpd, &metrics_handler_uri));
 
     // Start
     ESP_ERROR_CHECK(tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, node_name)); // NOTE this isn't available before WiFi init
@@ -282,9 +287,9 @@ static void app_devices_init(esp_rmaker_node_t *node)
     esp_rmaker_device_t *device = esp_rmaker_device_create(APP_DEVICE_NAME, APP_DEVICE_TYPE, NULL);
     assert(device);
 
+    ESP_ERROR_CHECK(esp_rmaker_node_add_device(node, device));
     ESP_ERROR_CHECK(esp_rmaker_device_add_cb(device, device_write_cb, NULL));
     ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, esp_rmaker_name_param_create(ESP_RMAKER_DEF_NAME_PARAM, APP_DEVICE_NAME)));
-    ESP_ERROR_CHECK(esp_rmaker_node_add_device(node, device));
 
     // Register buttons, sensors, etc
     max_speed_param = esp_rmaker_param_create(APP_RMAKER_DEF_MAX_SPEED_NAME, ESP_RMAKER_PARAM_SPEED, esp_rmaker_bool(false), PROP_FLAG_READ | PROP_FLAG_WRITE);
@@ -346,6 +351,64 @@ static void app_devices_init(esp_rmaker_node_t *node)
     }
 }
 
+static esp_err_t metrics_http_handler(httpd_req_t *r)
+{
+    // Read device name from NVS, since rainmaker provides absolutely no means to get it directly
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open(APP_DEVICE_NAME, NVS_READONLY, &handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(TAG, "failed to open nvs storage");
+        return err;
+    }
+    char name[100] = {};
+    size_t name_len = sizeof(name);
+    nvs_get_str(handle, ESP_RMAKER_DEF_NAME_PARAM, name, &name_len);
+    nvs_close(handle);
+
+    // Build metrics string
+    char buf[1024] = {};
+    char *ptr = buf;
+    const char *end = ptr + sizeof(buf);
+
+    // Sensors
+    if (sensors)
+    {
+        ptr = util_append(ptr, end, "# TYPE esp_celsius gauge\n");
+        for (size_t i = 0; i < sensors->count; i++)
+        {
+            ptr = util_append(ptr, end, "esp_celsius{address=\"%s\",hardware=\"%s\",sensor=\"%s\"} %0.3f\n", sensors_config[i].address, name, sensors_config[i].name, temperatures[i]);
+        }
+    }
+
+    // Sensor errors
+    ptr = util_append(ptr, end, "# TYPE esp_errors counter\n");
+    if (sensor_errors)
+    {
+        ptr = util_append(ptr, end, "esp_celsius{hardware=\"%s\"} %zu\n", name, sensor_errors);
+    }
+
+    // Fan
+    ptr = util_append(ptr, end, "# TYPE esp_rpm gauge\n");
+    ptr = util_append(ptr, end, "esp_rpm{hardware=\"%s\",sensor=\"Fan\"} %u\n", name, pc_fan_rpm_last_value(rpm));
+
+    ptr = util_append(ptr, end, "# TYPE esp_duty gauge\n");
+    ptr = util_append(ptr, end, "esp_duty{hardware=\"%s\",sensor=\"Fan\"} %d\n", name, (int)(fan_duty_percent * 100.0f));
+
+    // Send result
+    if (ptr != NULL)
+    {
+        // Send data
+        httpd_resp_set_type(r, "text/plain");
+        return httpd_resp_send(r, buf, (ssize_t)(ptr - buf));
+    }
+    else
+    {
+        // Buffer overflow
+        return ESP_FAIL;
+    }
+}
+
 static void loop()
 {
     // Read temperatures
@@ -357,15 +420,15 @@ static void loop()
         for (size_t i = 0; i < sensors->count; i++)
         {
             float temp_c = -127;
-            if (ds18b20_group_read_single(sensors, i, &temp_c) == ESP_OK && temp_c > -80)
+            if (ds18b20_group_read_single(sensors, i, &temp_c) == ESP_OK && temp_c > -70)
             {
                 temp_c += sensors_config[i].offset_c;
-
-                ESP_LOGI(TAG, "read temperature %s: %.3f C", sensors_config[i].address, temp_c);
                 temperatures[i] = temp_c;
+                ESP_LOGI(TAG, "read temperature %s: %.3f C", sensors_config[i].address, temp_c);
             }
             else
             {
+                ++sensor_errors;
                 ESP_LOGW(TAG, "failed to read from %s", sensors_config[i].address);
             }
         }

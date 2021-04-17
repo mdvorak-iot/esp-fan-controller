@@ -1,5 +1,8 @@
 idf_component_register(
-        SRC_DIRS .
+        SRCS
+        app_main.c
+        app_status.c
+        util/util_append.c
         INCLUDE_DIRS .
         REQUIRES
         freertos
