@@ -193,7 +193,7 @@ esp_err_t ds18b20_group_wait_for_conversion(ds18b20_group_handle_t handle)
     return ESP_OK;
 }
 
-esp_err_t ds18b20_group_read(ds18b20_group_handle_t handle, uint8_t index, float *value_c)
+esp_err_t ds18b20_group_read_single(ds18b20_group_handle_t handle, uint8_t index, float *value_c)
 {
     if (handle == NULL || value_c == NULL || index >= handle->count)
     {
