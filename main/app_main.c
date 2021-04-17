@@ -246,6 +246,8 @@ static void loop()
         // Fallback mode
         set_fan_duty(high_duty_percent);
     }
+
+    ESP_LOGI(TAG, "rpm: %d", pc_fan_rpm_last_value(rpm));
 }
 
 _Noreturn void app_main()
