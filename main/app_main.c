@@ -345,11 +345,11 @@ static void app_devices_init(esp_rmaker_node_t *node)
         // Sensors config
         for (size_t i = 0; i < sensor_count; i++)
         {
-            esp_rmaker_param_t *sensor_address_param = esp_rmaker_param_create(sensors_config[i].address_param_name, ESP_RMAKER_PARAM_NAME, esp_rmaker_str(sensors_config[i].address), PROP_FLAG_READ);
+            esp_rmaker_param_t *sensor_address_param = esp_rmaker_param_create(sensors_config[i].address_param_name, NULL, esp_rmaker_str(sensors_config[i].address), PROP_FLAG_READ);
             ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(sensor_address_param, ESP_RMAKER_UI_TEXT));
             ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, sensor_address_param));
 
-            esp_rmaker_param_t *sensor_name_param = esp_rmaker_param_create(sensors_config[i].name_param_name, ESP_RMAKER_PARAM_NAME, esp_rmaker_str(sensors_config[i].name), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
+            esp_rmaker_param_t *sensor_name_param = esp_rmaker_param_create(sensors_config[i].name_param_name, NULL, esp_rmaker_str(sensors_config[i].name), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
             ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(sensor_name_param, ESP_RMAKER_UI_TEXT));
             ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, sensor_name_param));
 
