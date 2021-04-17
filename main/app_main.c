@@ -201,9 +201,9 @@ void app_hw_init()
 
             strcpy(sensors_config[i].name, address_str); // Default name is address
 
-            snprintf(sensors_config[i].address_param_name, sizeof(sensors_config[i].address_param_name), APP_RMAKER_DEF_SENSOR_ADDRESS_NAME_F, i);
-            snprintf(sensors_config[i].name_param_name, sizeof(sensors_config[i].name_param_name), APP_RMAKER_DEF_SENSOR_NAME_NAME_F, i);
-            snprintf(sensors_config[i].offset_param_name, sizeof(sensors_config[i].offset_param_name), APP_RMAKER_DEF_SENSOR_OFFSET_NAME_F, i);
+            snprintf(sensors_config[i].address_param_name, sizeof(sensors_config[i].address_param_name), APP_RMAKER_DEF_SENSOR_ADDRESS_NAME_F, i + 1);
+            snprintf(sensors_config[i].name_param_name, sizeof(sensors_config[i].name_param_name), APP_RMAKER_DEF_SENSOR_NAME_NAME_F, i + 1);
+            snprintf(sensors_config[i].offset_param_name, sizeof(sensors_config[i].offset_param_name), APP_RMAKER_DEF_SENSOR_OFFSET_NAME_F, i + 1);
         }
     }
 }
