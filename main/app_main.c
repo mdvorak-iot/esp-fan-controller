@@ -70,7 +70,7 @@ static struct app_sensor_config
     char offset_param_name[40];
 } sensors_config[DS18B20_GROUP_MAX_SIZE] = {};
 static float temperatures[DS18B20_GROUP_MAX_SIZE] = {};
-static size_t sensor_errors = 0;
+static size_t sensor_errors[DS18B20_GROUP_MAX_SIZE] = {};
 
 // Config
 static bool force_max_duty = false;
@@ -483,18 +483,22 @@ static esp_err_t metrics_http_handler(httpd_req_t *r)
     // Sensors
     if (sensors)
     {
+        // Values
         ptr = util_append(ptr, end, "# TYPE esp_celsius gauge\n");
         for (size_t i = 0; i < sensors->count; i++)
         {
             ptr = util_append(ptr, end, "esp_celsius{address=\"%s\",hardware=\"%s\",sensor=\"%s\"} %0.3f\n", sensors_config[i].address, name, sensors_config[i].name, temperatures[i]);
         }
-    }
 
-    // Sensor errors
-    ptr = util_append(ptr, end, "# TYPE esp_errors counter\n");
-    if (sensor_errors)
-    {
-        ptr = util_append(ptr, end, "esp_celsius{hardware=\"%s\"} %zu\n", name, sensor_errors);
+        // Errors
+        ptr = util_append(ptr, end, "# TYPE esp_errors counter\n");
+        for (size_t i = 0; i < sensors->count; i++)
+        {
+            if (sensor_errors[i] > 0)
+            {
+                ptr = util_append(ptr, end, "esp_celsius{hardware=\"%s\"} %zu\n", name, sensor_errors[i]);
+            }
+        }
     }
 
     // Fan
@@ -537,7 +541,7 @@ static void loop()
             }
             else
             {
-                ++sensor_errors;
+                ++sensor_errors[i];
                 ESP_LOGW(TAG, "failed to read from %s", sensors_config[i].address);
             }
         }
