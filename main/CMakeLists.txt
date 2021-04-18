@@ -1,5 +1,8 @@
 idf_component_register(
-        SRC_DIRS .
+        SRCS
+        app_main.c
+        app_status.c
+        util/util_append.c
         INCLUDE_DIRS .
         REQUIRES
         freertos
@@ -8,14 +11,15 @@ idf_component_register(
         esp32
         esp_wifi
         app_update
+        wifi_provisioning
+        esp_rainmaker
+        rmaker_common
         esp_http_server
-        json
         double_reset
         status_led
-        wps_config
         wifi_reconnect
-        esp32-owb
-        esp32-ds18b20
-        aws_iot_mqtt_config
-        aws_iot_shadow
+        app_wifi
+        rainmaker_init
+        ds18b20_group
+        pc_fan
 )

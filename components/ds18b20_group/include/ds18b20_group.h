@@ -5,7 +5,7 @@
 #include <owb.h>
 
 #ifndef DS18B20_GROUP_MAX_SIZE
-#define DS18B20_GROUP_MAX_SIZE 10 // TODO CONFIG_DS18B20_GROUP_MAX_SIZE
+#define DS18B20_GROUP_MAX_SIZE CONFIG_DS18B20_GROUP_MAX_SIZE
 #endif
 
 #ifndef DS18B20_FAMILY
@@ -58,7 +58,7 @@ esp_err_t ds18b20_group_convert(ds18b20_group_handle_t handle);
 
 esp_err_t ds18b20_group_wait_for_conversion(ds18b20_group_handle_t handle);
 
-esp_err_t ds18b20_group_read(ds18b20_group_handle_t handle, uint8_t index, float *value_c);
+esp_err_t ds18b20_group_read_single(ds18b20_group_handle_t handle, uint8_t index, float *value_c);
 
 #ifdef __cplusplus
 }
