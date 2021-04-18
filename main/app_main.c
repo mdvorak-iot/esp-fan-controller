@@ -18,6 +18,8 @@
 #include <string.h>
 #include <wifi_reconnect.h>
 
+static const char TAG[] = "app_main";
+
 #define APP_DEVICE_NAME CONFIG_APP_DEVICE_NAME
 #define APP_DEVICE_TYPE CONFIG_APP_DEVICE_TYPE
 #define APP_CONTROL_LOOP_INTERVAL CONFIG_APP_CONTROL_LOOP_INTERVAL
@@ -32,8 +34,7 @@
 #define HW_DS18B20_PIN CONFIG_HW_DS18B20_PIN
 #define SENSORS_RMT_CHANNEL_TX RMT_CHANNEL_0
 #define SENSORS_RMT_CHANNEL_RX RMT_CHANNEL_1
-
-static const char TAG[] = "app_main";
+#define SENSORS_NVS_NAME "sensors"
 
 // Params
 #define APP_RMAKER_DEF_MAX_SPEED_NAME "Max Speed"
@@ -60,7 +61,7 @@ static ds18b20_group_handle_t sensors = NULL;
 static pc_fan_rpm_sampling_ptr rpm = NULL;
 static esp_timer_handle_t rpm_timer = NULL;
 static float fan_duty_percent = 0.9f;
-static struct
+static struct app_sensor_config
 {
     char address[17];
     char name[33];
@@ -213,6 +214,108 @@ void app_hw_init()
     }
 }
 
+static esp_err_t primary_sensor_param_handler(const esp_rmaker_param_t *param, const char *val)
+{
+    // Find primary sensor
+    if (sensors && sensors->count > 0)
+    {
+        for (size_t i = 0; i < sensors->count; i++)
+        {
+            if (strcmp(sensors_config[i].address, val) == 0)
+            {
+                // Found
+                primary_sensor_index = i;
+                return esp_rmaker_param_update_and_report(param, esp_rmaker_str(val));
+            }
+        }
+    }
+
+    // Not found or no sensors connected, ignore
+    return ESP_ERR_INVALID_STATE;
+}
+
+static esp_err_t sensor_name_param_handler(const esp_rmaker_param_t *param, const char *val, struct app_sensor_config *sensor_cfg)
+{
+    assert(param);
+    assert(val);
+    assert(sensor_cfg);
+
+    // NOTE this will actually trim last two chars from address, which are always 28
+    char nvs_key[16] = {};
+    snprintf(nvs_key, sizeof(nvs_key), "n%.14s", sensor_cfg->address);
+
+    char value[sizeof(sensor_cfg->name)] = {};
+    strlcpy(value, val, sizeof(value));
+
+    // Custom NVS store
+    nvs_handle_t handle = 0;
+    esp_err_t err = nvs_open(SENSORS_NVS_NAME, NVS_READWRITE, &handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "nvs_open(%s) failed: %d %s", SENSORS_NVS_NAME, err, esp_err_to_name(err));
+        return err;
+    }
+    err = nvs_set_str(handle, nvs_key, value);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "nvs_set_str(%s) failed: %d %s", nvs_key, err, esp_err_to_name(err));
+        return err;
+    }
+    err = nvs_commit(handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "nvs_commit(%s): %d %s", SENSORS_NVS_NAME, err, esp_err_to_name(err));
+        return err;
+    }
+    nvs_close(handle);
+
+    // Store state
+    strlcpy(sensor_cfg->name, value, sizeof(sensor_cfg->name));
+
+    // Report
+    return esp_rmaker_param_update_and_report(param, esp_rmaker_str(sensor_cfg->name));
+}
+
+static esp_err_t sensor_offset_param_handler(const esp_rmaker_param_t *param, float val, struct app_sensor_config *sensor_cfg)
+{
+    assert(param);
+    assert(sensor_cfg);
+
+    // NOTE this will actually trim last two chars from address, which are always 28
+    char nvs_key[16] = {};
+    snprintf(nvs_key, sizeof(nvs_key), "o%.14s", sensor_cfg->address);
+
+    // Custom NVS store
+    nvs_handle_t handle = 0;
+    esp_err_t err = nvs_open(SENSORS_NVS_NAME, NVS_READWRITE, &handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "nvs_open(%s) failed: %d %s", SENSORS_NVS_NAME, err, esp_err_to_name(err));
+        return err;
+    }
+    // float is not support it directly, so store it as multiplication of desired precision
+    int32_t val_int = (int32_t)(val * 1000.0f);
+    err = nvs_set_i32(handle, nvs_key, val_int);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "nvs_set_i32(%s) failed: %d %s", nvs_key, err, esp_err_to_name(err));
+        return err;
+    }
+    err = nvs_commit(handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "nvs_commit(%s): %d %s", SENSORS_NVS_NAME, err, esp_err_to_name(err));
+        return err;
+    }
+    nvs_close(handle);
+
+    // Store state
+    sensor_cfg->offset_c = (float)val_int / 1000.0f;
+
+    // Report
+    return esp_rmaker_param_update_and_report(param, esp_rmaker_float(sensor_cfg->offset_c));
+}
+
 static esp_err_t device_write_cb(__unused const esp_rmaker_device_t *device, const esp_rmaker_param_t *param,
                                  const esp_rmaker_param_val_t val, __unused void *private_data,
                                  __unused esp_rmaker_write_ctx_t *ctx)
@@ -255,21 +358,7 @@ static esp_err_t device_write_cb(__unused const esp_rmaker_device_t *device, con
     }
     if (strcmp(name, APP_RMAKER_DEF_PRIMARY_SENSOR_NAME) == 0)
     {
-        // Find primary sensor
-        if (sensors && sensors->count > 0)
-        {
-            for (size_t i = 0; i < sensors->count; i++)
-            {
-                if (strcmp(sensors_config[i].address, val.val.s) == 0)
-                {
-                    // Found
-                    primary_sensor_index = i;
-                    return esp_rmaker_param_update_and_report(param, val);
-                }
-            }
-        }
-        // Not found or no sensors connected, ignore
-        return ESP_ERR_INVALID_STATE;
+        return primary_sensor_param_handler(param, val.val.s);
     }
 
     if (sensors)
@@ -278,13 +367,11 @@ static esp_err_t device_write_cb(__unused const esp_rmaker_device_t *device, con
         {
             if (strcmp(name, sensors_config[i].name_param_name) == 0)
             {
-                strlcpy(sensors_config[i].name, val.val.s, sizeof(sensors_config[i].name));
-                return esp_rmaker_param_update_and_report(param, esp_rmaker_str(sensors_config[i].name));
+                return sensor_name_param_handler(param, val.val.s, &sensors_config[i]);
             }
             if (strcmp(name, sensors_config[i].offset_param_name) == 0)
             {
-                sensors_config[i].offset_c = val.val.f;
-                return esp_rmaker_param_update_and_report(param, val);
+                return sensor_offset_param_handler(param, val.val.f, &sensors_config[i]);
             }
         }
     }
@@ -342,22 +429,43 @@ static void app_devices_init(esp_rmaker_node_t *node)
         ESP_ERROR_CHECK(esp_rmaker_param_add_valid_str_list(primary_sensor_param, sensor_addresses, sensor_count));
         ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, primary_sensor_param));
 
+        // Custom NVS store
+        // NOTE we ignore errors here, because it might not be initialized yet on first boot
+        nvs_handle_t handle = 0;
+        ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_open(SENSORS_NVS_NAME, NVS_READONLY, &handle));
+
         // Sensors config
         for (size_t i = 0; i < sensor_count; i++)
         {
+            // NOTE this will actually trim last two chars from address, which are always 28
+            char nvs_name_key[16] = {};
+            char nvs_offset_key[16] = {};
+            snprintf(nvs_name_key, sizeof(nvs_name_key), "n%.14s", sensors_config[i].address);
+            snprintf(nvs_offset_key, sizeof(nvs_offset_key), "o%.14s", sensors_config[i].address);
+
+            size_t nvs_name_len = sizeof(sensors_config[i].name);
+            nvs_get_str(handle, nvs_name_key, sensors_config[i].name, &nvs_name_len);
+
+            int32_t offset_int = (int32_t)(sensors_config[i].offset_c * 1000.0f);
+            nvs_get_i32(handle, nvs_offset_key, &offset_int);
+            sensors_config[i].offset_c = (float)offset_int / 1000.0f;
+
             esp_rmaker_param_t *sensor_address_param = esp_rmaker_param_create(sensors_config[i].address_param_name, NULL, esp_rmaker_str(sensors_config[i].address), PROP_FLAG_READ);
             ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(sensor_address_param, ESP_RMAKER_UI_TEXT));
             ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, sensor_address_param));
 
-            esp_rmaker_param_t *sensor_name_param = esp_rmaker_param_create(sensors_config[i].name_param_name, NULL, esp_rmaker_str(sensors_config[i].name), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
+            esp_rmaker_param_t *sensor_name_param = esp_rmaker_param_create(sensors_config[i].name_param_name, NULL, esp_rmaker_str(sensors_config[i].name), PROP_FLAG_READ | PROP_FLAG_WRITE);
             ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(sensor_name_param, ESP_RMAKER_UI_TEXT));
             ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, sensor_name_param));
 
-            esp_rmaker_param_t *sensor_offset_param = esp_rmaker_param_create(sensors_config[i].offset_param_name, ESP_RMAKER_PARAM_TEMPERATURE, esp_rmaker_float(0.0f), PROP_FLAG_READ | PROP_FLAG_WRITE | PROP_FLAG_PERSIST);
+            esp_rmaker_param_t *sensor_offset_param = esp_rmaker_param_create(sensors_config[i].offset_param_name, ESP_RMAKER_PARAM_TEMPERATURE, esp_rmaker_float(sensors_config[i].offset_c), PROP_FLAG_READ | PROP_FLAG_WRITE);
             ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(sensor_offset_param, ESP_RMAKER_UI_TEXT));
             ESP_ERROR_CHECK(esp_rmaker_param_add_bounds(sensor_offset_param, esp_rmaker_float(-1.0f), esp_rmaker_float(1.0f), esp_rmaker_float(0.05f)));
             ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, sensor_offset_param));
         }
+
+        // Close NVS
+        nvs_close(handle);
     }
 }
 
