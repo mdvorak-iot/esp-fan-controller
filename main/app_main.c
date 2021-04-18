@@ -503,7 +503,10 @@ static esp_err_t metrics_http_handler(httpd_req_t *r)
 
     // Fan
     ptr = util_append(ptr, end, "# TYPE esp_rpm gauge\n");
-    ptr = util_append(ptr, end, "esp_rpm{hardware=\"%s\",sensor=\"Fan\"} %u\n", name, pc_fan_rpm_last_value(rpm));
+    ptr = util_append(ptr, end, "esp_rpm{hardware=\"%s\",sensor=\"Fan\"} %u\n", name, pc_fan_rpm_sampling_last_rpm(rpm));
+
+    ptr = util_append(ptr, end, "# TYPE esp_rpm_total counter\n");
+    ptr = util_append(ptr, end, "esp_rpm_total{hardware=\"%s\",sensor=\"Fan\"} %d\n", name, pc_fan_rpm_sampling_last_count(rpm));
 
     ptr = util_append(ptr, end, "# TYPE esp_duty gauge\n");
     ptr = util_append(ptr, end, "esp_duty{hardware=\"%s\",sensor=\"Fan\"} %d\n", name, (int)(fan_duty_percent * 100.0f));
@@ -564,7 +567,7 @@ static void loop()
         set_fan_duty(high_duty_percent);
     }
 
-    ESP_LOGI(TAG, "rpm: %d", pc_fan_rpm_last_value(rpm));
+    ESP_LOGI(TAG, "rpm: %d", pc_fan_rpm_sampling_last_rpm(rpm));
 }
 
 _Noreturn void app_main()
