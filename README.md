@@ -14,6 +14,8 @@ To provision WiFi, use provisioning app:
 To initiate provisioning mode, reset the device twice (double tap reset in about 1s interval). Status LED will start
 flashing rapidly.
 
+See [Kconfig.projbuild](./main/Kconfig.projbuild) and [sdkconfig.defaults](./sdkconfig.defaults) for default config.
+
 ## Development
 
 Prepare [ESP-IDF development environment](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/index.html#get-started-get-prerequisites)
