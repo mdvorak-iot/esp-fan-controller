@@ -32,4 +32,4 @@ CONFIG_ESP_RMAKER_DEF_TIMEZONE="Europe/Prague"
 CONFIG_ESP_RMAKER_SNTP_SERVER_NAME="pool.ntp.org"
 
 # Limit number of sensors, since two digit indices won't get persisted into NVM
-DS18B20_GROUP_MAX_SIZE=9
+CONFIG_DS18B20_GROUP_MAX_SIZE=9
