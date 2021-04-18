@@ -43,9 +43,8 @@ static const char TAG[] = "app_main";
 #define APP_RMAKER_DEF_LOW_TEMP_NAME "Low Temperature"
 #define APP_RMAKER_DEF_HIGH_TEMP_NAME "High Temperature"
 #define APP_RMAKER_DEF_PRIMARY_SENSOR_NAME "Primary Sensor"
-#define APP_RMAKER_DEF_SENSOR_ADDRESS_NAME_F "Sensor %zu Address"
-#define APP_RMAKER_DEF_SENSOR_NAME_NAME_F "Sensor %zu Name"
-#define APP_RMAKER_DEF_SENSOR_OFFSET_NAME_F "Sensor %zu Offset"
+#define APP_RMAKER_DEF_SENSOR_NAME_NAME_F "Sensor %s Name"
+#define APP_RMAKER_DEF_SENSOR_OFFSET_NAME_F "Sensor %s Offset"
 
 esp_rmaker_param_t *max_speed_param = NULL;
 esp_rmaker_param_t *low_speed_param = NULL;
@@ -67,9 +66,8 @@ static struct app_sensor_config
     char name[33];
     float offset_c;
 
-    char address_param_name[20];
-    char name_param_name[20];   // NOTE must actually fit into 15 char nvs key limit
-    char offset_param_name[20]; // NOTE must actually fit into 15 char nvs key limit
+    char name_param_name[40];
+    char offset_param_name[40];
 } sensors_config[DS18B20_GROUP_MAX_SIZE] = {};
 static float temperatures[DS18B20_GROUP_MAX_SIZE] = {};
 static size_t sensor_errors = 0;
@@ -203,13 +201,10 @@ void app_hw_init()
         {
             // Print address as string so we don't have to do that every time
             snprintf(sensors_config[i].address, sizeof(sensors_config[i].address), "%llx", *(uint64_t *)sensors->devices[i].rom_code.bytes);
-            const char *address_str = sensors_config[i].address;
+            strcpy(sensors_config[i].name, sensors_config[i].address); // Default name is address
 
-            strcpy(sensors_config[i].name, address_str); // Default name is address
-
-            snprintf(sensors_config[i].address_param_name, sizeof(sensors_config[i].address_param_name), APP_RMAKER_DEF_SENSOR_ADDRESS_NAME_F, i + 1);
-            snprintf(sensors_config[i].name_param_name, sizeof(sensors_config[i].name_param_name), APP_RMAKER_DEF_SENSOR_NAME_NAME_F, i + 1);
-            snprintf(sensors_config[i].offset_param_name, sizeof(sensors_config[i].offset_param_name), APP_RMAKER_DEF_SENSOR_OFFSET_NAME_F, i + 1);
+            snprintf(sensors_config[i].name_param_name, sizeof(sensors_config[i].name_param_name), APP_RMAKER_DEF_SENSOR_NAME_NAME_F, sensors_config[i].address);
+            snprintf(sensors_config[i].offset_param_name, sizeof(sensors_config[i].offset_param_name), APP_RMAKER_DEF_SENSOR_OFFSET_NAME_F, sensors_config[i].address);
         }
     }
 }
@@ -449,10 +444,6 @@ static void app_devices_init(esp_rmaker_node_t *node)
             int32_t offset_int = (int32_t)(sensors_config[i].offset_c * 1000.0f);
             nvs_get_i32(handle, nvs_offset_key, &offset_int);
             sensors_config[i].offset_c = (float)offset_int / 1000.0f;
-
-            esp_rmaker_param_t *sensor_address_param = esp_rmaker_param_create(sensors_config[i].address_param_name, NULL, esp_rmaker_str(sensors_config[i].address), PROP_FLAG_READ);
-            ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(sensor_address_param, ESP_RMAKER_UI_TEXT));
-            ESP_ERROR_CHECK(esp_rmaker_device_add_param(device, sensor_address_param));
 
             esp_rmaker_param_t *sensor_name_param = esp_rmaker_param_create(sensors_config[i].name_param_name, NULL, esp_rmaker_str(sensors_config[i].name), PROP_FLAG_READ | PROP_FLAG_WRITE);
             ESP_ERROR_CHECK(esp_rmaker_param_add_ui_type(sensor_name_param, ESP_RMAKER_UI_TEXT));
