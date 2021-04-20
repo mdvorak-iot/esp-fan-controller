@@ -74,7 +74,7 @@ esp_err_t ds18b20_group_find(ds18b20_group_handle_t handle)
     OneWireBus_SearchState search_state = {0};
     bool found = false;
 
-    OneWireBus_ROMCode owb_devices[DS18B20_GROUP_MAX_SIZE];
+    OneWireBus_ROMCode owb_devices[DS18B20_GROUP_MAX_SIZE] = {};
     uint8_t total_count = 0;  // Total count of all devices
     uint8_t device_count = 0; // Supported ds18b20 devices
 
@@ -85,7 +85,7 @@ esp_err_t ds18b20_group_find(ds18b20_group_handle_t handle)
         total_count++;
 
         // For logging
-        char rom_code_s[17];
+        char rom_code_s[17] = {};
         owb_string_from_rom_code(search_state.rom_code, rom_code_s, sizeof(rom_code_s));
 
         // Ignore if not correct family
