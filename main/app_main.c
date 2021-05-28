@@ -46,12 +46,12 @@ static const char TAG[] = "app_main";
 #define APP_RMAKER_DEF_SENSOR_NAME_NAME_F "Sensor %s Name"
 #define APP_RMAKER_DEF_SENSOR_OFFSET_NAME_F "Sensor %s Offset"
 
-esp_rmaker_param_t *max_speed_param = NULL;
-esp_rmaker_param_t *low_speed_param = NULL;
-esp_rmaker_param_t *high_speed_param = NULL;
-esp_rmaker_param_t *low_temperature_param = NULL;
-esp_rmaker_param_t *high_temperature_param = NULL;
-esp_rmaker_param_t *primary_sensor_param = NULL;
+static esp_rmaker_param_t *max_speed_param = NULL;
+static esp_rmaker_param_t *low_speed_param = NULL;
+static esp_rmaker_param_t *high_speed_param = NULL;
+static esp_rmaker_param_t *low_temperature_param = NULL;
+static esp_rmaker_param_t *high_temperature_param = NULL;
+static esp_rmaker_param_t *primary_sensor_param = NULL;
 
 // State
 static httpd_handle_t httpd = NULL;
